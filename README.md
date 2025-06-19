@@ -2,6 +2,12 @@
 
 An AI-powered hackathon project judging system that uses Claude AI to evaluate and rank projects with comprehensive error handling and graceful fallbacks.
 
+## 🎥 Demo Video
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/X_S9ijbSavw?si=pcQP9ZJfqUWENxMy" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+*Watch the full demo to see the AI judging system in action!*
+
 ## ✨ Features
 
 - **🔄 Never Crashes**: Comprehensive error handling ensures the app always provides results
