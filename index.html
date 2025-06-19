@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hackathon Judgementals</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,108 +15,110 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
-            background: #f8f9fa;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1a1a;
             min-height: 100vh;
-            color: #1a1a1a;
+            color: #f5f5f5;
             line-height: 1.6;
         }
         
         .container {
             max-width: 1280px;
             margin: 0 auto;
-            background: white;
+            background: #1a1a1a;
             min-height: 100vh;
         }
         
         .header {
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 24px 32px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2d2d2d;
+            padding: 32px 40px;
             position: sticky;
             top: 0;
             z-index: 100;
+            text-align: center;
         }
         
         .header h1 {
-            font-size: 28px;
+            font-size: 36px;
             font-weight: 600;
-            color: #1a1a1a;
-            margin-bottom: 8px;
+            color: #f5f5f5;
+            margin-bottom: 12px;
             letter-spacing: -0.02em;
         }
         
         .header p {
-            color: #6b7280;
-            font-size: 16px;
+            color: #a8a8a8;
+            font-size: 18px;
             font-weight: 400;
         }
         
         .content {
-            padding: 32px;
-            max-width: 800px;
+            padding: 40px;
+            max-width: 900px;
             margin: 0 auto;
         }
         
         .section {
-            margin-bottom: 48px;
+            margin-bottom: 56px;
         }
         
         .section h2 {
-            color: #1a1a1a;
-            margin-bottom: 24px;
-            font-size: 20px;
+            color: #f5f5f5;
+            margin-bottom: 28px;
+            font-size: 24px;
             font-weight: 600;
             letter-spacing: -0.01em;
         }
         
         .upload-section {
-            border: 2px dashed #d1d5db;
+            border: 2px dashed #3d3d3d;
             border-radius: 12px;
-            padding: 32px;
+            padding: 40px;
             text-align: center;
-            background: #f9fafb;
+            background: #2a2a2a;
             transition: all 0.2s ease;
         }
         
         .upload-section:hover {
-            border-color: #d97706;
-            background: #fffbeb;
+            border-color: #cc8b5c;
+            background: #2f2d2a;
         }
         
         .upload-input {
-            margin: 12px;
-            padding: 12px 16px;
-            border: 1px solid #d1d5db;
+            margin: 14px;
+            padding: 14px 18px;
+            border: 1px solid #3d3d3d;
             border-radius: 8px;
-            font-size: 14px;
-            background: white;
+            font-size: 16px;
+            background: #2a2a2a;
+            color: #f5f5f5;
             transition: border-color 0.2s ease;
             font-family: inherit;
         }
         
         .upload-input:focus {
             outline: none;
-            border-color: #d97706;
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+            border-color: #cc8b5c;
+            box-shadow: 0 0 0 3px rgba(204, 139, 92, 0.1);
         }
         
         .btn {
-            background: #d97706;
-            color: white;
+            background: #cc8b5c;
+            color: #1a1a1a;
             border: none;
-            padding: 12px 24px;
+            padding: 14px 28px;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 500;
             transition: all 0.2s ease;
-            margin: 8px;
+            margin: 10px;
             font-family: inherit;
         }
         
         .btn:hover {
-            background: #b45309;
+            background: #d4956b;
         }
         
         .btn:disabled {
@@ -137,16 +142,16 @@
         }
         
         .project-item {
-            background: #f9fafb;
+            background: #2a2a2a;
             padding: 20px;
             border-radius: 12px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid #3d3d3d;
             transition: all 0.2s ease;
         }
         
         .project-item:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            border-color: #d1d5db;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: #4a4a4a;
         }
         
         .judges-grid {
@@ -156,41 +161,41 @@
         }
         
         .judge-card {
-            background: #f9fafb;
-            padding: 24px;
+            background: #2a2a2a;
+            padding: 28px;
             border-radius: 12px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid #3d3d3d;
             transition: all 0.2s ease;
         }
         
         .judge-card:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            border-color: #d1d5db;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: #4a4a4a;
         }
         
         .judge-card h3 {
-            color: #1a1a1a;
-            margin-bottom: 12px;
-            font-size: 16px;
+            color: #f5f5f5;
+            margin-bottom: 14px;
+            font-size: 18px;
             font-weight: 600;
         }
         
         .judge-card p {
-            color: #6b7280;
-            font-size: 14px;
+            color: #a8a8a8;
+            font-size: 16px;
             line-height: 1.5;
         }
         
         .judge-form {
-            background: #f9fafb;
+            background: #2a2a2a;
             padding: 24px;
             border-radius: 12px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid #3d3d3d;
             margin-top: 24px;
         }
         
         .judge-form h3 {
-            color: #1a1a1a;
+            color: #f5f5f5;
             margin-bottom: 16px;
             font-size: 16px;
             font-weight: 600;
@@ -200,18 +205,19 @@
             width: 100%;
             padding: 12px 16px;
             margin: 8px 0;
-            border: 1px solid #d1d5db;
+            border: 1px solid #3d3d3d;
             border-radius: 8px;
             font-size: 14px;
-            background: white;
+            background: #2a2a2a;
+            color: #f5f5f5;
             font-family: inherit;
             transition: border-color 0.2s ease;
         }
         
         .judge-form input:focus, .judge-form textarea:focus {
             outline: none;
-            border-color: #d97706;
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+            border-color: #cc8b5c;
+            box-shadow: 0 0 0 3px rgba(204, 139, 92, 0.1);
         }
         
         .judge-form textarea {
@@ -224,8 +230,8 @@
         }
         
         .result-item {
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: #2a2a2a;
+            border: 1px solid #3d3d3d;
             border-radius: 12px;
             margin-bottom: 16px;
             overflow: hidden;
@@ -233,12 +239,12 @@
         }
         
         .result-item:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
         
         .result-header {
-            background: #1a1a1a;
-            color: white;
+            background: #cc8b5c;
+            color: #1a1a1a;
             padding: 20px 24px;
             cursor: pointer;
             display: flex;
@@ -248,7 +254,7 @@
         }
         
         .result-header:hover {
-            background: #374151;
+            background: #d4956b;
         }
         
         .result-content {
@@ -262,7 +268,7 @@
         
         .tabs {
             display: flex;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #3d3d3d;
             margin-bottom: 24px;
             gap: 4px;
         }
@@ -274,19 +280,19 @@
             transition: all 0.2s ease;
             font-size: 14px;
             font-weight: 500;
-            color: #6b7280;
+            color: #a8a8a8;
             border-radius: 6px 6px 0 0;
         }
         
         .tab:hover {
-            background: #f9fafb;
-            color: #1a1a1a;
+            background: #3d3d3d;
+            color: #f5f5f5;
         }
         
         .tab.active {
-            border-bottom-color: #d97706;
-            color: #d97706;
-            background: #fffbeb;
+            border-bottom-color: #cc8b5c;
+            color: #cc8b5c;
+            background: #2f2d2a;
         }
         
         .tab-content {
@@ -298,14 +304,14 @@
         }
         
         .tab-content h4 {
-            color: #1a1a1a;
+            color: #f5f5f5;
             margin-bottom: 16px;
             font-size: 16px;
             font-weight: 600;
         }
         
         .tab-content h5 {
-            color: #374151;
+            color: #cc8b5c;
             margin: 16px 0 8px 0;
             font-size: 14px;
             font-weight: 600;
@@ -314,13 +320,13 @@
         }
         
         .tab-content p {
-            color: #4b5563;
+            color: #c4c4c4;
             margin-bottom: 16px;
             line-height: 1.6;
         }
         
         .tab-content ul {
-            color: #4b5563;
+            color: #c4c4c4;
             padding-left: 20px;
             margin-bottom: 16px;
         }
@@ -332,12 +338,12 @@
         .loading {
             text-align: center;
             padding: 24px;
-            color: #6b7280;
+            color: #a8a8a8;
         }
         
         .spinner {
-            border: 3px solid #f3f4f6;
-            border-top: 3px solid #d97706;
+            border: 3px solid #3d3d3d;
+            border-top: 3px solid #cc8b5c;
             border-radius: 50%;
             width: 32px;
             height: 32px;
@@ -355,8 +361,8 @@
         }
         
         .rank-badge {
-            background: #d97706;
-            color: white;
+            background: #cc8b5c;
+            color: #1a1a1a;
             padding: 6px 12px;
             border-radius: 6px;
             font-weight: 600;
@@ -369,31 +375,31 @@
             color: #1a1a1a;
         }
         
-        /* Warning box styling to match Claude.ai */
+        /* Warning box styling to match Claude.ai dark theme */
         .warning-box {
-            background: #fffbeb;
-            border: 1px solid #fed7aa;
+            background: #2f2d2a;
+            border: 1px solid #4a453e;
             border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 24px;
+            padding: 24px;
+            margin-bottom: 28px;
         }
         
         .warning-box h4 {
-            color: #92400e;
-            margin-bottom: 12px;
-            font-size: 16px;
+            color: #cc8b5c;
+            margin-bottom: 16px;
+            font-size: 18px;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
         
         .warning-box ul {
-            color: #92400e;
-            font-size: 14px;
+            color: #d4ab7a;
+            font-size: 16px;
             margin: 0;
-            padding-left: 20px;
-            line-height: 1.5;
+            padding-left: 24px;
+            line-height: 1.6;
         }
         
         .warning-box li {
@@ -402,6 +408,7 @@
         
         .warning-box strong {
             font-weight: 600;
+            color: #cc8b5c;
         }
     </style>
 </head>
