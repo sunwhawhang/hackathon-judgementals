@@ -10,7 +10,15 @@
       "Bash(git commit:*)",
       "Bash(git branch:*)",
       "Bash(git remote add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:www.laborandwait.xyz)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

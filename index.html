@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,145 +13,145 @@
             font-style: normal;
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 1';
             src: url('./fonts/177b7db6a26ff4c3-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 2';
             src: url('./fonts/183a0d33cd5ef006-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 3';
             src: url('./fonts/2cc8547efe9f163a-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 4';
             src: url('./fonts/2d21c5135ef46b39-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 5';
             src: url('./fonts/34cf6df3ae325a7c-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 6';
             src: url('./fonts/3b066fe34f61f169-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 7';
             src: url('./fonts/4e8887750eb14755-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 8';
             src: url('./fonts/5cc13524e09f5d21-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 9';
             src: url('./fonts/5fee9713a1748cc9-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 10';
             src: url('./fonts/6a2030c2a5787e7a-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 11';
             src: url('./fonts/8217ebd4682cfe49-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 12';
             src: url('./fonts/a0eafab536ffd221-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 13';
             src: url('./fonts/a4897545ac341705-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 14';
             src: url('./fonts/a72997480c14a9d4-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 15';
             src: url('./fonts/ae9d065a0123ed8a-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 16';
             src: url('./fonts/b96accb76593e50d-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 17';
             src: url('./fonts/cfe503504e29ad5d-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 18';
             src: url('./fonts/d13ff1ddfcb21419-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 19';
             src: url('./fonts/d4ad98ce6ee578c0-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 20';
             src: url('./fonts/d7440d3c533a1aec-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 21';
             src: url('./fonts/db2277a4dc542e54-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         @font-face {
             font-family: 'Claude Font 22';
             src: url('./fonts/f6f0b26c2c0e7b63-s.p.woff2') format('woff2');
             font-display: swap;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: "Tiempos Text", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, serif;
             background: #1a1a1a;
@@ -158,14 +159,14 @@
             color: #f5f5f5;
             line-height: 1.6;
         }
-        
+
         .container {
             max-width: 1280px;
             margin: 0 auto;
             background: #1a1a1a;
             min-height: 100vh;
         }
-        
+
         .header {
             background: #1a1a1a;
             border-bottom: 1px solid #2d2d2d;
@@ -175,7 +176,7 @@
             z-index: 100;
             text-align: center;
         }
-        
+
         .header h1 {
             font-family: 'Claude Font 1', 'Claude Font 7', 'Claude Font 10', serif;
             font-size: 36px;
@@ -183,24 +184,31 @@
             color: rgb(194, 192, 182);
             margin-bottom: 12px;
             letter-spacing: -0.02em;
+            animation: float 6s ease-in-out infinite;
+            background: linear-gradient(45deg, rgb(194, 192, 182), #cc8b5c, rgb(194, 192, 182));
+            background-size: 200% 200%;
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 3s ease-in-out infinite, float 6s ease-in-out infinite;
         }
-        
+
         .header p {
             color: #a8a8a8;
             font-size: 18px;
             font-weight: 400;
         }
-        
+
         .content {
             padding: 40px;
             max-width: 900px;
             margin: 0 auto;
         }
-        
+
         .section {
             margin-bottom: 56px;
         }
-        
+
         .section h2 {
             font-family: 'Claude Font 1', 'Claude Font 7', 'Claude Font 10', serif;
             color: rgb(194, 192, 182);
@@ -209,21 +217,42 @@
             font-weight: 600;
             letter-spacing: -0.01em;
         }
-        
+
         .upload-section {
             border: 2px dashed #3d3d3d;
             border-radius: 12px;
             padding: 40px;
             text-align: center;
             background: #2a2a2a;
-            transition: all 0.2s ease;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         }
-        
+
+        .upload-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(204, 139, 92, 0.05) 50%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
         .upload-section:hover {
             border-color: #cc8b5c;
             background: #2f2d2a;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
         }
-        
+
+        .upload-section:hover::before {
+            opacity: 1;
+        }
+
         .upload-input {
             margin: 14px;
             padding: 14px 18px;
@@ -235,13 +264,13 @@
             transition: border-color 0.2s ease;
             font-family: inherit;
         }
-        
+
         .upload-input:focus {
             outline: none;
             border-color: #cc8b5c;
             box-shadow: 0 0 0 3px rgba(204, 139, 92, 0.1);
         }
-        
+
         .btn {
             background: #cc8b5c;
             color: #1a1a1a;
@@ -251,54 +280,97 @@
             cursor: pointer;
             font-size: 16px;
             font-weight: 500;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             margin: 10px;
             font-family: inherit;
+            position: relative;
+            overflow: hidden;
+            transform: translateY(0);
         }
-        
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
         .btn:hover {
             background: #d4956b;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(204, 139, 92, 0.3);
         }
-        
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:active {
+            transform: translateY(0);
+            transition: transform 0.1s;
+        }
+
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-        
+
         .btn-danger {
             background: #dc2626;
         }
-        
+
         .btn-danger:hover {
             background: #b91c1c;
         }
-        
+
         .project-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 16px;
             margin-top: 24px;
         }
-        
+
         .project-item {
             background: #2a2a2a;
             padding: 20px;
             border-radius: 12px;
             border: 1px solid #3d3d3d;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         }
-        
+
+        .project-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #cc8b5c, transparent);
+            transition: left 0.5s ease;
+        }
+
         .project-item:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
             border-color: #4a4a4a;
+            transform: translateY(-4px);
         }
-        
+
+        .project-item:hover::after {
+            left: 100%;
+        }
+
         .judges-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 20px;
         }
-        
+
         .judge-card {
             background: #2a2a2a;
             padding: 28px;
@@ -306,25 +378,25 @@
             border: 1px solid #3d3d3d;
             transition: all 0.2s ease;
         }
-        
+
         .judge-card:hover {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             border-color: #4a4a4a;
         }
-        
+
         .judge-card h3 {
             color: #f5f5f5;
             margin-bottom: 14px;
             font-size: 18px;
             font-weight: 600;
         }
-        
+
         .judge-card p {
             color: #a8a8a8;
             font-size: 16px;
             line-height: 1.5;
         }
-        
+
         .judge-form {
             background: #2a2a2a;
             padding: 24px;
@@ -332,15 +404,16 @@
             border: 1px solid #3d3d3d;
             margin-top: 24px;
         }
-        
+
         .judge-form h3 {
             color: #f5f5f5;
             margin-bottom: 16px;
             font-size: 16px;
             font-weight: 600;
         }
-        
-        .judge-form input, .judge-form textarea {
+
+        .judge-form input,
+        .judge-form textarea {
             width: 100%;
             padding: 12px 16px;
             margin: 8px 0;
@@ -352,22 +425,23 @@
             font-family: inherit;
             transition: border-color 0.2s ease;
         }
-        
-        .judge-form input:focus, .judge-form textarea:focus {
+
+        .judge-form input:focus,
+        .judge-form textarea:focus {
             outline: none;
             border-color: #cc8b5c;
             box-shadow: 0 0 0 3px rgba(204, 139, 92, 0.1);
         }
-        
+
         .judge-form textarea {
             height: 120px;
             resize: vertical;
         }
-        
+
         .results-section {
             margin-top: 32px;
         }
-        
+
         .result-item {
             background: #2a2a2a;
             border: 1px solid #3d3d3d;
@@ -376,11 +450,11 @@
             overflow: hidden;
             transition: all 0.2s ease;
         }
-        
+
         .result-item:hover {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
-        
+
         .result-header {
             background: #cc8b5c;
             color: #1a1a1a;
@@ -391,27 +465,27 @@
             align-items: center;
             transition: background-color 0.2s ease;
         }
-        
+
         .result-header:hover {
             background: #d4956b;
         }
-        
+
         .result-content {
             display: none;
             padding: 24px;
         }
-        
+
         .result-content.active {
             display: block;
         }
-        
+
         .tabs {
             display: flex;
             border-bottom: 1px solid #3d3d3d;
             margin-bottom: 24px;
             gap: 4px;
         }
-        
+
         .tab {
             padding: 12px 20px;
             cursor: pointer;
@@ -422,33 +496,33 @@
             color: #a8a8a8;
             border-radius: 6px 6px 0 0;
         }
-        
+
         .tab:hover {
             background: #3d3d3d;
             color: #f5f5f5;
         }
-        
+
         .tab.active {
             border-bottom-color: #cc8b5c;
             color: #cc8b5c;
             background: #2f2d2a;
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         .tab-content h4 {
             color: #f5f5f5;
             margin-bottom: 16px;
             font-size: 16px;
             font-weight: 600;
         }
-        
+
         .tab-content h5 {
             color: #cc8b5c;
             margin: 16px 0 8px 0;
@@ -457,29 +531,29 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        
+
         .tab-content p {
             color: #c4c4c4;
             margin-bottom: 16px;
             line-height: 1.6;
         }
-        
+
         .tab-content ul {
             color: #c4c4c4;
             padding-left: 20px;
             margin-bottom: 16px;
         }
-        
+
         .tab-content li {
             margin-bottom: 4px;
         }
-        
+
         .loading {
             text-align: center;
             padding: 24px;
             color: #a8a8a8;
         }
-        
+
         .spinner {
             border: 3px solid #3d3d3d;
             border-top: 3px solid #cc8b5c;
@@ -488,17 +562,207 @@
             height: 32px;
             animation: spin 1s linear infinite;
             margin: 0 auto 12px;
+            position: relative;
         }
-        
+
+        .spinner::after {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: -3px;
+            right: -3px;
+            bottom: -3px;
+            border: 2px solid transparent;
+            border-top: 2px solid rgba(204, 139, 92, 0.3);
+            border-radius: 50%;
+            animation: spin 2s linear infinite reverse;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 24px;
+            color: #a8a8a8;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
-        
+
         .hidden {
             display: none;
         }
-        
+
+        /* Fancy Claude.ai-style animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        @keyframes glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(204, 139, 92, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(204, 139, 92, 0.4);
+            }
+        }
+
+        /* Apply animations to elements */
+        .container {
+            animation: fadeInScale 0.8s ease-out;
+        }
+
+        .header {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .section {
+            animation: fadeInUp 0.7s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .section:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .section:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .section:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .section:nth-child(5) {
+            animation-delay: 0.4s;
+        }
+
+        /* Scroll-triggered animations */
+        .scroll-animate {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .scroll-animate.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Staggered animation for cards */
+        .judge-card {
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .judge-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .judge-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .judge-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .judge-card:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        /* Fancy progress indicator */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #3d3d3d;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #cc8b5c, #d4956b);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
         .rank-badge {
             background: #cc8b5c;
             color: #1a1a1a;
@@ -507,13 +771,13 @@
             font-weight: 600;
             font-size: 14px;
         }
-        
+
         .score {
             font-size: 18px;
             font-weight: 600;
             color: #1a1a1a;
         }
-        
+
         /* Warning box styling to match Claude.ai dark theme */
         .warning-box {
             background: #2f2d2a;
@@ -522,7 +786,7 @@
             padding: 24px;
             margin-bottom: 28px;
         }
-        
+
         .warning-box h4 {
             color: #cc8b5c;
             margin-bottom: 16px;
@@ -532,7 +796,7 @@
             align-items: center;
             gap: 10px;
         }
-        
+
         .warning-box ul {
             color: #d4ab7a;
             font-size: 16px;
@@ -540,24 +804,27 @@
             padding-left: 24px;
             line-height: 1.6;
         }
-        
+
         .warning-box li {
             margin-bottom: 4px;
         }
-        
+
         .warning-box strong {
             font-weight: 600;
             color: #cc8b5c;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏆 Hackathon Judgementals</h1>
+            <h1><img src="trophy.png" alt="Trophy"
+                    style="width: 54px; height: 54px; vertical-align: middle; margin-right: 8px; transform: translateY(-5px);">
+                Hackathon Judgementals</h1>
             <p>AI-powered hackathon project judging system</p>
         </div>
-        
+
         <div class="content">
             <!-- Upload Section -->
             <div class="section">
@@ -567,7 +834,8 @@
                     <ul>
                         <li>Keep projects under <strong>10MB total</strong> for best results</li>
                         <li>Individual files larger than <strong>1MB</strong> will be automatically skipped</li>
-                        <li><strong>Avoid uploading:</strong> node_modules, .git, dist, build, lib, cache folders, images</li>
+                        <li><strong>Avoid uploading:</strong> node_modules, .git, dist, build, lib, cache folders,
+                            images</li>
                         <li><strong>Focus on:</strong> source code, README, docs, config files</li>
                         <li>Large projects are automatically truncated to fit AI analysis limits</li>
                         <li>System automatically prioritizes important files (README, main files)</li>
@@ -581,15 +849,15 @@
                         <button class="btn" onclick="uploadProject()">Upload Project</button>
                     </div>
                 </div>
-                
+
                 <div id="projectList" class="project-list"></div>
             </div>
-            
+
             <!-- Judges Section -->
             <div class="section">
                 <h2>👨‍⚖️ Judges</h2>
                 <div id="judgesGrid" class="judges-grid"></div>
-                
+
                 <div class="judge-form">
                     <h3>Add Custom Judge</h3>
                     <input type="text" id="judgeName" placeholder="Judge Name" />
@@ -597,7 +865,7 @@
                     <button class="btn" onclick="addCustomJudge()">Add Judge</button>
                 </div>
             </div>
-            
+
             <!-- Control Section -->
             <div class="section">
                 <h2>🚀 Start Judging</h2>
@@ -607,7 +875,7 @@
                     <p>Judges are evaluating projects...</p>
                 </div>
             </div>
-            
+
             <!-- Results Section -->
             <div id="resultsSection" class="section hidden">
                 <h2>🏅 Final Rankings</h2>
@@ -615,7 +883,77 @@
             </div>
         </div>
     </div>
-    
+
     <script src="app.js"></script>
+
+    <script>
+        // Fancy scroll-based animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        // Observe elements for scroll animations
+        document.addEventListener('DOMContentLoaded', () => {
+            const animateElements = document.querySelectorAll('.scroll-animate');
+            animateElements.forEach(el => observer.observe(el));
+
+            // Add scroll animation classes to existing elements
+            const elementsToAnimate = document.querySelectorAll('.judge-form, .result-item');
+            elementsToAnimate.forEach(el => {
+                el.classList.add('scroll-animate');
+                observer.observe(el);
+            });
+        });
+
+        // Enhanced button click effects
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn')) {
+                const button = e.target;
+                const ripple = document.createElement('span');
+                const rect = button.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+
+                ripple.style.cssText = `
+                    position: absolute;
+                    width: ${size}px;
+                    height: ${size}px;
+                    left: ${x}px;
+                    top: ${y}px;
+                    background: rgba(255, 255, 255, 0.3);
+                    border-radius: 50%;
+                    transform: scale(0);
+                    animation: ripple 0.6s ease-out;
+                    pointer-events: none;
+                `;
+
+                button.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            }
+        });
+
+        // Add ripple animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes ripple {
+                to {
+                    transform: scale(2);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
 </body>
+
 </html>
