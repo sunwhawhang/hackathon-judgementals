@@ -4,9 +4,9 @@ An AI-powered hackathon project judging system that uses Claude AI to evaluate a
 
 ## 🎥 Demo Video
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/X_S9ijbSavw?si=pcQP9ZJfqUWENxMy" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+[![Hackathon Judgementals Demo](https://img.youtube.com/vi/X_S9ijbSavw/maxresdefault.jpg)](https://www.youtube.com/watch?v=X_S9ijbSavw)
 
-*Watch the full demo to see the AI judging system in action!*
+**[▶️ Watch the full demo on YouTube](https://www.youtube.com/watch?v=X_S9ijbSavw)** - See the AI judging system in action!
 
 ## ✨ Features
 
