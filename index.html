@@ -342,6 +342,8 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .project-item::after {
@@ -670,6 +672,61 @@
             }
         }
 
+        /* Upload method tabs */
+        .tab-btn {
+            padding: 8px 16px;
+            border: 1px solid #3d3d3d;
+            background: #2a2a2a;
+            color: #a8a8a8;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            background: #3d3d3d;
+            color: #f5f5f5;
+        }
+
+        .tab-btn.active {
+            background: #cc8b5c;
+            color: #1a1a1a;
+            border-color: #cc8b5c;
+        }
+
+        .upload-method {
+            transition: all 0.3s ease;
+        }
+
+        /* Judge card styling */
+        .judge-summary {
+            color: #a8a8a8;
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 8px 0 12px 0;
+            font-style: italic;
+        }
+
+        .judge-details summary {
+            list-style: none;
+            padding: 4px 0;
+            transition: color 0.2s ease;
+        }
+
+        .judge-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .judge-details summary:hover {
+            color: #d4956b;
+        }
+
+        .judge-details[open] summary {
+            margin-bottom: 8px;
+        }
+
         /* Apply animations to elements */
         .container {
             animation: fadeInScale 0.8s ease-out;
@@ -716,6 +773,25 @@
         .judge-card {
             animation: fadeInUp 0.6s ease-out;
             animation-fill-mode: both;
+        }
+
+        /* Ensure details elements don't break layout */
+        .project-item details {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .project-item details summary {
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+
+        .project-item details[open] {
+            overflow: visible;
         }
 
         .judge-card:nth-child(1) {
@@ -844,8 +920,35 @@
                 <div class="upload-section">
                     <div>
                         <input type="text" id="projectName" class="upload-input" placeholder="Project Name" />
-                        <input type="file" id="folderUpload" webkitdirectory directory multiple class="upload-input" />
-                        <br>
+                        
+                        <!-- Upload Method Tabs -->
+                        <div style="margin: 16px 0;">
+                            <div style="display: flex; gap: 8px; margin-bottom: 12px; justify-content: center;">
+                                <button class="tab-btn active" onclick="switchUploadMethod('folder')" id="folderTab">
+                                    📁 Upload Folder
+                                </button>
+                                <button class="tab-btn" onclick="switchUploadMethod('zip')" id="zipTab">
+                                    📦 Upload ZIP File
+                                </button>
+                            </div>
+                            
+                            <!-- Folder Upload -->
+                            <div id="folderUploadMethod" class="upload-method">
+                                <input type="file" id="folderUpload" webkitdirectory directory multiple class="upload-input" />
+                                <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                    ⚠️ Large projects (90k+ files) may be slow. Consider using ZIP upload instead.
+                                </div>
+                            </div>
+                            
+                            <!-- ZIP Upload -->
+                            <div id="zipUploadMethod" class="upload-method" style="display: none;">
+                                <input type="file" id="zipUpload" accept=".zip" class="upload-input" />
+                                <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                    ✅ Recommended for large projects. Much faster than folder upload.
+                                </div>
+                            </div>
+                        </div>
+                        
                         <button class="btn" onclick="uploadProject()">Upload Project</button>
                     </div>
                 </div>

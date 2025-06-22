@@ -64,57 +64,434 @@ class HackathonJudge {
         const judgesGrid = document.getElementById('judgesGrid');
         if (!judgesGrid)
             return;
-        judgesGrid.innerHTML = this.judges.map(judge => `
-            <div class="judge-card">
-                <h3>${judge.name}</h3>
-                <p>${judge.description}</p>
-                ${judge.id.startsWith('custom') ? `<button class="btn btn-danger" onclick="removeJudge('${judge.id}')">Remove</button>` : ''}
-            </div>
-        `).join('');
+        judgesGrid.innerHTML = this.judges.map(judge => {
+            const summary = this.generateJudgeSummary(judge.description);
+            const judgeId = judge.id.replace(/'/g, "\\'");
+            return `
+                <div class="judge-card" style="position: relative;">
+                    <button 
+                        onclick="removeJudge('${judgeId}')" 
+                        style="position: absolute; top: 8px; right: 8px; background: transparent; color: #cc8b5c; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; z-index: 10;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.2)'; this.style.color='white'"
+                        onmouseout="this.style.background='transparent'; this.style.color='#cc8b5c'"
+                        title="Remove judge"
+                    >
+                        ×
+                    </button>
+                    <h3>${judge.name}</h3>
+                    <p class="judge-summary">${summary}</p>
+                    <details class="judge-details">
+                        <summary style="cursor: pointer; color: #cc8b5c; font-size: 14px; margin-top: 8px;">
+                            📋 View full description
+                        </summary>
+                        <div style="margin-top: 8px; padding: 12px; background: #2a2a2a; border-radius: 6px; font-size: 13px; line-height: 1.4; color: #d1d1d1;">
+                            ${judge.description.replace(/\n/g, '<br>')}
+                        </div>
+                    </details>
+                </div>
+            `;
+        }).join('');
+    }
+    generateJudgeSummary(description) {
+        // Extract key focus areas from the description
+        const lines = description.split('\n').filter(line => line.trim());
+        const firstLine = lines[0] || description;
+        // Look for key phrases that indicate focus areas
+        const focusKeywords = [
+            'technical', 'innovation', 'creativity', 'user experience', 'design',
+            'implementation', 'scalability', 'performance', 'security', 'accessibility',
+            'business', 'market', 'impact', 'feasibility', 'presentation', 'code quality',
+            'architecture', 'testing', 'documentation', 'team collaboration'
+        ];
+        const lowerDesc = description.toLowerCase();
+        const foundKeywords = focusKeywords.filter(keyword => lowerDesc.includes(keyword)).slice(0, 3);
+        if (foundKeywords.length > 0) {
+            const keywordText = foundKeywords.join(', ');
+            const truncatedFirst = firstLine.length > 100 ?
+                firstLine.substring(0, 100) + '...' : firstLine;
+            return `Focuses on: ${keywordText}. ${truncatedFirst}`;
+        }
+        // Fallback: just truncate the first line
+        return firstLine.length > 120 ?
+            firstLine.substring(0, 120) + '...' : firstLine;
     }
     renderProjects() {
         const projectList = document.getElementById('projectList');
         if (!projectList)
             return;
-        projectList.innerHTML = this.projects.map(project => `
-            <div class="project-item">
-                <h4>${project.name}</h4>
-                <p>${project.files.length} files uploaded</p>
-            </div>
-        `).join('');
+        projectList.innerHTML = this.projects.map(project => {
+            const projectId = project.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            const droppedInfo = project.droppedSummary && project.droppedSummary.length > 0 ?
+                `<div style="font-size: 12px; color: #a8a8a8; width: 100%; overflow: hidden;">
+                    <div 
+                        onclick="toggleDroppedFiles('${projectId}')" 
+                        style="cursor: pointer; color: #cc8b5c; padding: 4px 0; user-select: none;"
+                        id="dropped-toggle-${projectId}"
+                    >
+                        ▶️ View excluded files (${project.droppedSummary.length} categories)
+                    </div>
+                    <div 
+                        id="dropped-content-${projectId}" 
+                        style="display: none; margin-top: 4px; padding: 8px 12px; background: #1e1e1e; border-radius: 4px; border-left: 3px solid #cc8b5c; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;"
+                    >
+                        ${project.droppedSummary.map(item => `<div style="margin: 2px 0; word-wrap: break-word;">• ${item}</div>`).join('')}
+                    </div>
+                </div>` :
+                `<div style="font-size: 11px; color: #666;">
+                    ✅ No files were excluded during processing
+                </div>`;
+            return `
+                <div class="project-item">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <h4>${project.name}</h4>
+                            <p>${project.files.length} files uploaded</p>
+                        </div>
+                        <button 
+                            class="btn" 
+                            style="font-size: 12px; padding: 6px 12px; margin-left: 12px; flex-shrink: 0;"
+                            onclick="downloadProject('${project.name.replace(/'/g, "\\'")}')"
+                        >
+                            📥 Download
+                        </button>
+                    </div>
+                    <div style="width: 100%; overflow: hidden;">
+                        ${droppedInfo}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    downloadProject(projectName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const project = this.projects.find(p => p.name === projectName);
+            if (!project) {
+                this.showError('Project not found');
+                return;
+            }
+            try {
+                console.log(`📥 Downloading project: ${projectName} (${project.files.length} files)`);
+                const response = yield fetch('http://localhost:3001/api/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        projectName: project.name,
+                        files: project.files
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error(`Download failed: ${response.statusText}`);
+                }
+                // Create download link for ZIP file
+                const blob = yield response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${projectName}-processed.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                this.showSuccess(`✅ Downloaded: ${projectName}-processed.zip (${project.files.length} files)`);
+            }
+            catch (error) {
+                console.error('❌ Download error:', error);
+                this.showError(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        });
     }
     uploadProject() {
         return __awaiter(this, void 0, void 0, function* () {
             const nameInput = document.getElementById('projectName');
-            const fileInput = document.getElementById('folderUpload');
+            const folderInput = document.getElementById('folderUpload');
+            const zipInput = document.getElementById('zipUpload');
             const uploadSection = document.querySelector('.upload-section');
             if (!nameInput.value.trim()) {
                 this.showError('Please enter a project name');
                 return;
             }
-            if (!fileInput.files || fileInput.files.length === 0) {
-                this.showError('Please select a project folder');
-                return;
+            // Check which upload method is active
+            const folderMethod = document.getElementById('folderUploadMethod');
+            const isZipUpload = folderMethod.style.display === 'none';
+            if (isZipUpload) {
+                // ZIP upload
+                if (!zipInput.files || zipInput.files.length === 0) {
+                    this.showError('Please select a ZIP file');
+                    return;
+                }
+                return this.uploadZipFile(nameInput, zipInput, uploadSection);
             }
-            // Show upload progress
+            else {
+                // Folder upload
+                if (!folderInput.files || folderInput.files.length === 0) {
+                    this.showError('Please select a project folder');
+                    return;
+                }
+                return this.uploadFolderFiles(nameInput, folderInput, uploadSection);
+            }
+        });
+    }
+    uploadZipFile(nameInput, zipInput, uploadSection) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const zipFile = zipInput.files[0];
+            // Show upload progress for ZIP
             uploadSection.innerHTML = `
             <div class="loading">
                 <div class="spinner"></div>
-                <p>Uploading and processing files...</p>
-                <p style="font-size: 12px; color: #666;">Note: Large projects may be truncated to fit Claude's limits</p>
+                <p><strong>Uploading ZIP file: ${zipFile.name}</strong></p>
+                <p style="font-size: 14px; color: #a8a8a8;">Size: ${(zipFile.size / 1024 / 1024).toFixed(2)}MB</p>
+                <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                    Server will extract and filter files automatically
+                </p>
             </div>
         `;
             try {
                 const formData = new FormData();
                 formData.append('projectName', nameInput.value.trim());
-                // Add all files to form data
-                for (let i = 0; i < fileInput.files.length; i++) {
-                    formData.append('files', fileInput.files[i]);
-                }
+                formData.append('zipFile', zipFile);
+                formData.append('uploadType', 'zip');
                 const response = yield fetch('http://localhost:3001/api/upload', {
                     method: 'POST',
                     body: formData
                 });
+                const result = yield response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'ZIP upload failed');
+                }
+                // Add project to local list
+                this.projects.push({
+                    name: result.projectName,
+                    files: result.files,
+                    droppedSummary: result.droppedSummary
+                });
+                this.showSuccess(`✅ ZIP uploaded successfully! ${result.files.length} files processed`);
+                // Show warnings and dropped files summary
+                if (result.warnings && result.warnings.length > 0) {
+                    setTimeout(() => {
+                        this.showWarning(result.warnings.join('\n'));
+                    }, 1000);
+                }
+                if (result.droppedSummary && result.droppedSummary.length > 0) {
+                    setTimeout(() => {
+                        this.showWarning('Files excluded during processing:\n' + result.droppedSummary.join('\n'));
+                    }, 2000);
+                }
+                // Clear inputs
+                nameInput.value = '';
+                zipInput.value = '';
+                this.renderProjects();
+            }
+            catch (error) {
+                console.error('❌ ZIP upload error:', error);
+                this.showError(`ZIP upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+            finally {
+                this.restoreUploadForm(uploadSection);
+            }
+        });
+    }
+    uploadFolderFiles(nameInput, fileInput, uploadSection) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const fileCount = fileInput.files.length;
+            const isLargeUpload = fileCount > 1000;
+            // Show immediate feedback with file count
+            uploadSection.innerHTML = `
+            <div class="loading">
+                <div class="spinner"></div>
+                <p><strong>Preparing ${fileCount.toLocaleString()} files for upload...</strong></p>
+                <p style="font-size: 14px; color: #a8a8a8;">Processing and filtering files...</p>
+                ${isLargeUpload ? `
+                    <div style="background: #3d2914; border: 1px solid #cc8b5c; border-radius: 8px; padding: 12px; margin-top: 12px;">
+                        <strong style="color: #cc8b5c;">Large Project Detected (${fileCount.toLocaleString()} files)</strong>
+                        <p style="font-size: 12px; color: #a8a8a8; margin: 4px 0 0 0;">
+                            This may take a while. Files like node_modules, .git, and hidden folders will be filtered out.
+                        </p>
+                    </div>
+                ` : ''}
+                <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                    Note: Large projects may be truncated to fit Claude's limits
+                </p>
+            </div>
+        `;
+            // Add a timeout warning for very large uploads
+            let timeoutWarning = null;
+            if (isLargeUpload) {
+                timeoutWarning = setTimeout(() => {
+                    const loadingDiv = document.querySelector('.loading p:last-child');
+                    if (loadingDiv) {
+                        loadingDiv.innerHTML = `
+                        <strong style="color: #cc8b5c;">Still processing... This is taking longer than expected.</strong><br>
+                        <span style="font-size: 11px; color: #666;">
+                            Large projects with many files (especially node_modules) can take several minutes.
+                        </span>
+                    `;
+                    }
+                }, 10000); // Show warning after 10 seconds
+            }
+            try {
+                // Update progress as we build FormData
+                const progressDiv = uploadSection.querySelector('.loading p:nth-child(3)');
+                if (progressDiv) {
+                    progressDiv.textContent = 'Building upload data...';
+                }
+                const formData = new FormData();
+                formData.append('projectName', nameInput.value.trim());
+                // Pre-filter files on client side to reduce upload size dramatically
+                const filteredFiles = [];
+                let filteredCount = 0;
+                const droppedFolders = new Set();
+                const droppedFiles = [];
+                const oversizedFiles = [];
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    const file = fileInput.files[i];
+                    const filePath = file.webkitRelativePath || file.name;
+                    // Update progress every 5000 files during filtering
+                    if (i % 5000 === 0 && progressDiv) {
+                        progressDiv.textContent = `Filtering files... ${i.toLocaleString()} / ${fileCount.toLocaleString()} processed`;
+                        // Allow DOM to update
+                        yield new Promise(resolve => setTimeout(resolve, 0));
+                    }
+                    // Client-side filtering to match server logic
+                    if (this.shouldFilterFile(filePath)) {
+                        filteredCount++;
+                        // Track which folders/files are being dropped
+                        const pathParts = filePath.split('/');
+                        let foundFolder = false;
+                        // Remove the project root prefix to get relative path
+                        let relativePath = filePath;
+                        if (pathParts.length > 1) {
+                            // Skip the first part (project root) if it's a common project name
+                            const firstPart = pathParts[0];
+                            if (firstPart.length > 3 && !firstPart.startsWith('.')) {
+                                relativePath = pathParts.slice(1).join('/');
+                            }
+                        }
+                        for (const part of pathParts) {
+                            if (part.startsWith('.') ||
+                                ['node_modules', 'bower_components', 'vendor', 'packages', 'deps', 'dependencies',
+                                    'dist', 'build', 'target', 'bin', 'obj', 'out', 'lib', 'libs', '.next',
+                                    '__pycache__', '.venv', 'venv', 'env', '.env', '.pytest_cache',
+                                    'coverage', '.nyc_output', '.coverage', 'htmlcov',
+                                    '.gradle', '.mvn', '.idea', '.vscode', '.vs',
+                                    'tmp', 'temp', 'cache', '.cache', '.tmp',
+                                    'logs', '.sass-cache', '.nuxt', '.output'].includes(part.toLowerCase())) {
+                                droppedFolders.add(part);
+                                foundFolder = true;
+                                break;
+                            }
+                        }
+                        // If not a known folder, track as individual file with relative path
+                        if (!foundFolder) {
+                            droppedFiles.push(relativePath);
+                        }
+                        continue;
+                    }
+                    // Skip files larger than 1MB
+                    if (file.size > 1024 * 1024) {
+                        filteredCount++;
+                        // Remove the project root prefix to get relative path
+                        let relativePath = filePath;
+                        const pathParts = filePath.split('/');
+                        if (pathParts.length > 1) {
+                            const firstPart = pathParts[0];
+                            if (firstPart.length > 3 && !firstPart.startsWith('.')) {
+                                relativePath = pathParts.slice(1).join('/');
+                            }
+                        }
+                        oversizedFiles.push({ name: relativePath, size: file.size });
+                        continue;
+                    }
+                    filteredFiles.push(file);
+                    // Stop if we have enough files (server limit)
+                    if (filteredFiles.length >= 1000) {
+                        filteredCount += (fileInput.files.length - i - 1);
+                        break;
+                    }
+                }
+                console.log(`📊 Client-side filtering complete: ${filteredFiles.length} files to upload, ${filteredCount} filtered out`);
+                // Group dropped files by their parent directories
+                const filesByDirectory = new Map();
+                for (const filePath of droppedFiles) {
+                    const pathParts = filePath.split('/');
+                    if (pathParts.length > 1) {
+                        // Group by parent directory
+                        const dirPath = pathParts.slice(0, -1).join('/');
+                        const fileName = pathParts[pathParts.length - 1];
+                        if (!filesByDirectory.has(dirPath)) {
+                            filesByDirectory.set(dirPath, []);
+                        }
+                        filesByDirectory.get(dirPath).push(fileName);
+                    }
+                    else {
+                        // Root level file
+                        if (!filesByDirectory.has('')) {
+                            filesByDirectory.set('', []);
+                        }
+                        filesByDirectory.get('').push(filePath);
+                    }
+                }
+                // Track client-side filtering stats to send to server
+                const clientFilterStats = {
+                    totalFiles: fileCount,
+                    filteredFiles: filteredFiles.length,
+                    filteredCount: filteredCount,
+                    filterRatio: ((filteredCount / fileCount) * 100).toFixed(1),
+                    droppedFolders: Array.from(droppedFolders),
+                    droppedFiles: droppedFiles,
+                    filesByDirectory: Object.fromEntries(filesByDirectory),
+                    oversizedFiles: oversizedFiles
+                };
+                if (progressDiv) {
+                    progressDiv.innerHTML = `
+                    <strong>Adding ${filteredFiles.length.toLocaleString()} filtered files to upload...</strong><br>
+                    <span style="font-size: 12px; color: #a8a8a8;">
+                        ${filteredCount.toLocaleString()} files filtered out (${((filteredCount / fileCount) * 100).toFixed(1)}% reduction)
+                    </span>
+                `;
+                }
+                // Add filtered files to form data with path information
+                for (let i = 0; i < filteredFiles.length; i++) {
+                    const file = filteredFiles[i];
+                    const filePath = file.webkitRelativePath || file.name;
+                    // Debug logging for path information
+                    if (i < 5) { // Log first 5 files
+                        console.log(`📁 File ${i}: name="${file.name}", webkitRelativePath="${file.webkitRelativePath}", finalPath="${filePath}"`);
+                    }
+                    // Create a new File object with the path as the name to preserve structure
+                    const fileWithPath = new File([file], filePath, {
+                        type: file.type,
+                        lastModified: file.lastModified
+                    });
+                    formData.append('files', fileWithPath);
+                    // Update progress every 100 files during form building
+                    if (i % 100 === 0 && progressDiv) {
+                        progressDiv.textContent = `Building upload: ${i.toLocaleString()} / ${filteredFiles.length.toLocaleString()} files added...`;
+                        // Allow DOM to update
+                        yield new Promise(resolve => setTimeout(resolve, 0));
+                    }
+                }
+                // Update to show we're now uploading
+                if (progressDiv) {
+                    progressDiv.innerHTML = `
+                    <strong>Uploading to server...</strong><br>
+                    <span style="font-size: 12px; color: #a8a8a8;">
+                        Server will filter and process files
+                    </span>
+                `;
+                }
+                // Add client-side filtering stats to the request
+                formData.append('clientFilterStats', JSON.stringify(clientFilterStats));
+                const response = yield fetch('http://localhost:3001/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                // Clear timeout warning
+                if (timeoutWarning) {
+                    clearTimeout(timeoutWarning);
+                }
                 const result = yield response.json();
                 if (!result.success) {
                     throw new Error(result.error || 'Upload failed');
@@ -122,7 +499,8 @@ class HackathonJudge {
                 // Add project to local list
                 this.projects.push({
                     name: result.projectName,
-                    files: result.files
+                    files: result.files,
+                    droppedSummary: result.droppedSummary
                 });
                 let message = `✅ Uploaded ${result.files.length} files successfully!`;
                 if (result.skippedFiles && result.skippedFiles > 0) {
@@ -138,26 +516,91 @@ class HackathonJudge {
                         });
                     }, 1000);
                 }
+                // Show dropped files summary
+                if (result.droppedSummary && result.droppedSummary.length > 0) {
+                    setTimeout(() => {
+                        this.showWarning('Files excluded during processing:\n' + result.droppedSummary.join('\n'));
+                    }, 2000);
+                }
                 nameInput.value = '';
                 fileInput.value = '';
                 this.renderProjects();
             }
             catch (error) {
-                console.error('Upload error:', error);
-                this.showError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                console.error('❌ Upload error details:', error);
+                console.error('❌ Error type:', typeof error);
+                console.error('❌ Error constructor:', (_a = error === null || error === void 0 ? void 0 : error.constructor) === null || _a === void 0 ? void 0 : _a.name);
+                // Clear timeout warning
+                if (timeoutWarning) {
+                    clearTimeout(timeoutWarning);
+                }
+                let errorMessage = 'Upload failed: ';
+                if (error instanceof TypeError && error.message.includes('fetch')) {
+                    errorMessage += 'Cannot connect to server. Make sure the server is running on localhost:3001';
+                    console.error('❌ Server connection failed. Please check if server is running with: npm run serve');
+                }
+                else if (error instanceof Error) {
+                    errorMessage += error.message;
+                }
+                else {
+                    errorMessage += 'Unknown error occurred';
+                }
+                console.error('❌ Final error message:', errorMessage);
+                this.showError(errorMessage);
             }
             finally {
-                // Restore upload form
-                uploadSection.innerHTML = `
-                <div>
-                    <input type="text" id="projectName" class="upload-input" placeholder="Project Name" />
-                    <input type="file" id="folderUpload" webkitdirectory directory multiple class="upload-input" />
-                    <br>
-                    <button class="btn" onclick="uploadProject()">Upload Project</button>
-                </div>
-            `;
+                this.restoreUploadForm(uploadSection);
             }
         });
+    }
+    restoreUploadForm(uploadSection) {
+        uploadSection.innerHTML = `
+            <div>
+                <input type="text" id="projectName" class="upload-input" placeholder="Project Name" />
+                
+                <!-- Upload Method Tabs -->
+                <div style="margin: 16px 0;">
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; justify-content: center;">
+                        <button class="tab-btn active" onclick="switchUploadMethod('folder')" id="folderTab">
+                            📁 Upload Folder
+                        </button>
+                        <button class="tab-btn" onclick="switchUploadMethod('zip')" id="zipTab">
+                            📦 Upload ZIP File
+                        </button>
+                    </div>
+                    
+                    <!-- Folder Upload -->
+                    <div id="folderUploadMethod" class="upload-method">
+                        <input type="file" id="folderUpload" webkitdirectory directory multiple class="upload-input" />
+                        <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                            ⚠️ Large projects may be slow. Consider using ZIP upload instead.
+                        </div>
+                    </div>
+                    
+                    <!-- ZIP Upload -->
+                    <div id="zipUploadMethod" class="upload-method" style="display: none;">
+                        <input type="file" id="zipUpload" accept=".zip" class="upload-input" />
+                        <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                            ✅ Recommended for large projects. Much faster than folder upload.
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn" onclick="uploadProject()">Upload Project</button>
+            </div>
+        `;
+    }
+    showWarning(message) {
+        const warningDiv = document.createElement('div');
+        warningDiv.style.cssText = `
+            position: fixed; top: 20px; right: 20px; z-index: 1000;
+            background: #ff9f43; color: white; padding: 15px 20px;
+            border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 400px; word-wrap: break-word;
+        `;
+        warningDiv.textContent = message;
+        document.body.appendChild(warningDiv);
+        setTimeout(() => warningDiv.remove(), 7000);
     }
     showError(message) {
         const errorDiv = document.createElement('div');
@@ -171,6 +614,47 @@ class HackathonJudge {
         document.body.appendChild(errorDiv);
         setTimeout(() => errorDiv.remove(), 5000);
     }
+    shouldFilterFile(filePath) {
+        const lowerPath = filePath.toLowerCase();
+        // Filter out common directories that should be ignored
+        const ignoredDirs = [
+            'node_modules', '.git', '.next', 'dist', 'build', 'target', 'bin', 'obj',
+            '__pycache__', '.venv', 'venv', 'env', '.env', 'coverage', '.nyc_output',
+            'vendor', 'bower_components', '.gradle', '.mvn', 'out', 'lib', 'libs',
+            'packages', 'deps', 'dependencies', 'tmp', 'temp', 'cache', '.cache',
+            '.svn', '.hg', '.bzr', '.idea', '.vscode', '.vs', '.pytest_cache',
+            '.coverage', 'htmlcov', '.sass-cache', '.nuxt', '.output', 'logs'
+        ];
+        // Check if path contains any ignored directory
+        for (const dir of ignoredDirs) {
+            if (lowerPath.includes(`/${dir}/`) || lowerPath.startsWith(`${dir}/`) || lowerPath.endsWith(`/${dir}`)) {
+                return true;
+            }
+        }
+        // Filter out hidden files and directories (starting with .)
+        const pathParts = filePath.split('/');
+        for (const part of pathParts) {
+            if (part.startsWith('.') && part !== '.' && part !== '..') {
+                // Allow some important dotfiles
+                const allowedDotFiles = ['.env.example', '.gitignore', '.gitattributes', '.editorconfig', '.babelrc', '.eslintrc', '.prettierrc'];
+                if (!allowedDotFiles.some(allowed => part === allowed || part.startsWith(allowed.split('.')[1]))) {
+                    return true;
+                }
+            }
+        }
+        // Filter out binary file extensions
+        const ignoredExtensions = [
+            '.zip', '.tar', '.gz', '.rar', '.7z', '.exe', '.dll', '.so', '.dylib',
+            '.class', '.jar', '.war', '.ear', '.deb', '.rpm', '.dmg', '.iso',
+            '.mp4', '.avi', '.mov', '.wmv', '.mp3', '.wav', '.flac', '.aac',
+            '.min.js', '.min.css', '.bundle.js', '.chunk.js', '.woff', '.woff2',
+            '.ttf', '.eot', '.map', '.lock',
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.svg', '.webp',
+            '.ico', '.cur', '.psd', '.ai', '.sketch', '.fig'
+        ];
+        const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+        return ignoredExtensions.includes(ext);
+    }
     showSuccess(message) {
         const successDiv = document.createElement('div');
         successDiv.style.cssText = `
@@ -183,38 +667,51 @@ class HackathonJudge {
         document.body.appendChild(successDiv);
         setTimeout(() => successDiv.remove(), 3000);
     }
-    showWarning(message) {
-        const warningDiv = document.createElement('div');
-        warningDiv.style.cssText = `
-            position: fixed; top: 80px; right: 20px; z-index: 1000;
-            background: #ffa726; color: white; padding: 15px 20px;
-            border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            max-width: 400px; word-wrap: break-word;
-        `;
-        warningDiv.textContent = `⚠️ ${message}`;
-        document.body.appendChild(warningDiv);
-        setTimeout(() => warningDiv.remove(), 4000);
-    }
     addCustomJudge() {
         const nameInput = document.getElementById('judgeName');
         const promptInput = document.getElementById('judgePrompt');
         if (!nameInput.value.trim() || !promptInput.value.trim()) {
-            alert('Please fill in both judge name and prompt');
+            this.showError('Please fill in both judge name and prompt');
             return;
         }
+        // Use the prompt as the description for the custom judge
         const customJudge = {
             id: `custom-${Date.now()}`,
             name: nameInput.value.trim(),
-            description: 'Custom judge with specific evaluation criteria',
+            description: promptInput.value.trim(), // Use the full prompt as description
             prompt: promptInput.value.trim()
         };
         this.judges.push(customJudge);
+        // Clear the form
         nameInput.value = '';
         promptInput.value = '';
+        // Show success message
+        this.showSuccess(`✅ Added custom judge: ${customJudge.name}`);
+        // Re-render the judges list
         this.renderJudges();
     }
     removeJudge(judgeId) {
+        // Safety check: don't allow removing all judges
+        if (this.judges.length <= 1) {
+            this.showError('Cannot remove the last judge. You need at least one judge for the competition.');
+            return;
+        }
+        // Find the judge to remove
+        const judgeToRemove = this.judges.find(judge => judge.id === judgeId);
+        if (!judgeToRemove) {
+            this.showError('Judge not found');
+            return;
+        }
+        // Confirm removal for default judges
+        const isDefaultJudge = ['technical', 'innovation', 'user-experience'].includes(judgeId);
+        if (isDefaultJudge) {
+            const confirmed = confirm(`Are you sure you want to remove the default "${judgeToRemove.name}" judge?`);
+            if (!confirmed) {
+                return;
+            }
+        }
         this.judges = this.judges.filter(judge => judge.id !== judgeId);
+        this.showSuccess(`✅ Removed judge: ${judgeToRemove.name}`);
         this.renderJudges();
     }
     callClaudeAPI(prompt) {
@@ -653,7 +1150,27 @@ class HackathonJudge {
 const hackathonJudge = new HackathonJudge();
 // Global functions for HTML onclick handlers
 function uploadProject() {
-    hackathonJudge.uploadProject();
+    console.log('🚀 uploadProject() called');
+    hackathonJudge.uploadProject().catch(error => {
+        console.error('❌ Upload failed:', error);
+    });
+}
+function toggleDroppedFiles(projectId) {
+    var _a;
+    const content = document.getElementById(`dropped-content-${projectId}`);
+    const toggle = document.getElementById(`dropped-toggle-${projectId}`);
+    if (content && toggle) {
+        const categoriesText = toggle.innerHTML.includes('categories') ?
+            ((_a = toggle.innerHTML.match(/\((\d+) categories\)/)) === null || _a === void 0 ? void 0 : _a[0]) || '' : '';
+        if (content.style.display === 'none' || content.style.display === '') {
+            content.style.display = 'block';
+            toggle.innerHTML = `🔽 Hide excluded files ${categoriesText}`;
+        }
+        else {
+            content.style.display = 'none';
+            toggle.innerHTML = `▶️ View excluded files ${categoriesText}`;
+        }
+    }
 }
 function addCustomJudge() {
     hackathonJudge.addCustomJudge();
@@ -662,7 +1179,16 @@ function removeJudge(judgeId) {
     hackathonJudge.removeJudge(judgeId);
 }
 function startJudging() {
-    hackathonJudge.startJudging();
+    console.log('🚀 startJudging() called');
+    hackathonJudge.startJudging().catch(error => {
+        console.error('❌ Judging failed:', error);
+    });
+}
+function downloadProject(projectName) {
+    console.log('📥 downloadProject() called for:', projectName);
+    hackathonJudge.downloadProject(projectName).catch(error => {
+        console.error('❌ Download failed:', error);
+    });
 }
 function toggleResult(projectName) {
     const resultContent = document.getElementById(`result-${projectName}`);
@@ -692,3 +1218,65 @@ function switchTab(projectName, tabIndex) {
         selectedTab.classList.add('active');
     }
 }
+// Global function for switching upload methods
+function switchUploadMethod(method) {
+    const folderMethod = document.getElementById('folderUploadMethod');
+    const zipMethod = document.getElementById('zipUploadMethod');
+    const folderTab = document.getElementById('folderTab');
+    const zipTab = document.getElementById('zipTab');
+    if (method === 'folder') {
+        folderMethod.style.display = 'block';
+        zipMethod.style.display = 'none';
+        folderTab.classList.add('active');
+        zipTab.classList.remove('active');
+    }
+    else {
+        folderMethod.style.display = 'none';
+        zipMethod.style.display = 'block';
+        folderTab.classList.remove('active');
+        zipTab.classList.add('active');
+    }
+}
+// Initialize the app when DOM is loaded and add file input listener
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Initializing file input listeners...');
+    // Add file input change listener for immediate feedback
+    const fileInput = document.getElementById('folderUpload');
+    if (fileInput) {
+        fileInput.addEventListener('change', (event) => {
+            var _a;
+            const target = event.target;
+            const fileCount = ((_a = target.files) === null || _a === void 0 ? void 0 : _a.length) || 0;
+            if (fileCount > 0) {
+                console.log(`📁 Selected ${fileCount.toLocaleString()} files for upload`);
+                // Show immediate feedback
+                const uploadSection = document.querySelector('.upload-section');
+                if (uploadSection && fileCount > 5000) {
+                    const feedbackDiv = document.createElement('div');
+                    feedbackDiv.style.cssText = `
+                        background: #3d2914; 
+                        border: 1px solid #cc8b5c; 
+                        border-radius: 8px; 
+                        padding: 12px; 
+                        margin-top: 12px;
+                        color: #cc8b5c;
+                        font-size: 14px;
+                    `;
+                    feedbackDiv.innerHTML = `
+                        <strong>📊 ${fileCount.toLocaleString()} files selected</strong><br>
+                        <small style="color: #a8a8a8;">
+                            Large project detected. Files will be filtered during upload.
+                        </small>
+                    `;
+                    // Remove any existing feedback
+                    const existingFeedback = uploadSection.querySelector('[data-feedback]');
+                    if (existingFeedback) {
+                        existingFeedback.remove();
+                    }
+                    feedbackDiv.setAttribute('data-feedback', 'true');
+                    uploadSection.appendChild(feedbackDiv);
+                }
+            }
+        });
+    }
+});
