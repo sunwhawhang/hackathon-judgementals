@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Firestore rules for Hackathon Judgementals
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow anyone to read and write to the projects collection
+    match /projects/{projectId} {
+      allow read, write: if true;
+    }
+    
+    // Allow anyone to read and write to the evaluations collection
+    match /evaluations/{evaluationId} {
+      allow read, write: if true;
+    }
+    
+    // Deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

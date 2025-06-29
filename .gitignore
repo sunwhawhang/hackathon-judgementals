@@ -103,3 +103,7 @@ config/secrets.js
 
 # Local development files
 *.local
+
+tools/
+
+.claude

@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hackathon Judgementals</title>
+    <link rel="icon" type="image/png" href="hackjudge-favicon.png">
+    <link rel="shortcut icon" type="image/png" href="hackjudge-favicon.png">
     <style>
         @font-face {
             font-family: 'Tiempos Text';
@@ -597,6 +599,16 @@
             }
         }
 
+        .mini-spinner {
+            border: 2px solid #3d3d3d;
+            border-top: 2px solid #cc8b5c;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
         .hidden {
             display: none;
         }
@@ -707,6 +719,58 @@
             line-height: 1.4;
             margin: 8px 0 12px 0;
             font-style: italic;
+        }
+
+        /* Judge source selection buttons */
+        .judge-source-btn {
+            padding: 12px 20px;
+            border: 2px solid #3d3d3d;
+            background: #2a2a2a;
+            color: #a8a8a8;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .judge-source-btn:hover {
+            background: #3d3d3d;
+            color: #f5f5f5;
+            border-color: #4a4a4a;
+            transform: translateY(-1px);
+        }
+
+        .judge-source-btn.selected {
+            background: #cc8b5c;
+            color: #1a1a1a;
+            border-color: #cc8b5c;
+            box-shadow: 0 4px 12px rgba(204, 139, 92, 0.3);
+        }
+
+        .judge-source-btn.selected:hover {
+            background: #d4956b;
+            border-color: #d4956b;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(204, 139, 92, 0.4);
+        }
+
+        .judge-source-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .judge-source-btn:hover::before {
+            left: 100%;
         }
 
         .judge-details summary {
@@ -895,8 +959,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1><img src="trophy.png" alt="Trophy"
-                    style="width: 54px; height: 54px; vertical-align: middle; margin-right: 8px; transform: translateY(-5px);">
+            <h1><img src="hackjudge.png" alt="HackJudge"
+                    style="width: 44px; height: 40px; vertical-align: middle; margin-right: 8px; transform: translateY(-3px) scaleX(1.1);">
                 Hackathon Judgementals</h1>
             <p>AI-powered hackathon project judging system</p>
         </div>
@@ -920,36 +984,50 @@
                 <div class="upload-section">
                     <div>
                         <input type="text" id="projectName" class="upload-input" placeholder="Project Name" />
-                        
-                        <!-- Upload Method Tabs -->
+
+                        <!-- Upload Method Buttons -->
                         <div style="margin: 16px 0;">
                             <div style="display: flex; gap: 8px; margin-bottom: 12px; justify-content: center;">
-                                <button class="tab-btn active" onclick="switchUploadMethod('folder')" id="folderTab">
+                                <button class="tab-btn" onclick="triggerFolderUpload()" id="folderTab">
                                     📁 Upload Folder
                                 </button>
-                                <button class="tab-btn" onclick="switchUploadMethod('zip')" id="zipTab">
+                                <button class="tab-btn" onclick="triggerZipUpload()" id="zipTab">
                                     📦 Upload ZIP File
                                 </button>
+                                <button class="tab-btn" onclick="triggerGithubUpload()" id="githubTab">
+                                    🐙 GitHub URL
+                                </button>
                             </div>
-                            
-                            <!-- Folder Upload -->
-                            <div id="folderUploadMethod" class="upload-method">
-                                <input type="file" id="folderUpload" webkitdirectory directory multiple class="upload-input" />
+
+                            <!-- Hidden file inputs -->
+                            <input type="file" id="folderUpload" webkitdirectory directory multiple
+                                style="display: none;" />
+                            <input type="file" id="zipUpload" accept=".zip" style="display: none;" />
+
+                            <!-- GitHub URL Input (initially hidden) -->
+                            <div id="githubUploadMethod" class="upload-method" style="display: none;">
+                                <input type="url" id="githubUrl" placeholder="https://github.com/user/repo"
+                                    class="upload-input" />
                                 <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
-                                    ⚠️ Large projects (90k+ files) may be slow. Consider using ZIP upload instead.
+                                    🚀 Enter any public GitHub repository URL. Server will clone and process
+                                    automatically.
                                 </div>
+                                <button class="btn" onclick="uploadProject()" style="margin-top: 12px;">Upload from
+                                    GitHub</button>
                             </div>
-                            
-                            <!-- ZIP Upload -->
-                            <div id="zipUploadMethod" class="upload-method" style="display: none;">
-                                <input type="file" id="zipUpload" accept=".zip" class="upload-input" />
-                                <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
-                                    ✅ Recommended for large projects. Much faster than folder upload.
-                                </div>
+
+                            <!-- Status message for file uploads -->
+                            <div id="uploadStatus"
+                                style="font-size: 14px; color: #a8a8a8; margin-top: 8px; text-align: center; display: none;">
+                            </div>
+
+                            <!-- Main Upload Button -->
+                            <div style="display: flex; justify-content: center; margin-top: 16px;">
+                                <button class="btn" onclick="uploadProject()" id="mainUploadBtn" style="display: none;">
+                                    Upload Project
+                                </button>
                             </div>
                         </div>
-                        
-                        <button class="btn" onclick="uploadProject()">Upload Project</button>
                     </div>
                 </div>
 
@@ -963,9 +1041,72 @@
 
                 <div class="judge-form">
                     <h3>Add Custom Judge</h3>
-                    <input type="text" id="judgeName" placeholder="Judge Name" />
-                    <textarea id="judgePrompt" placeholder="Judge description and evaluation criteria..."></textarea>
-                    <button class="btn" onclick="addCustomJudge()">Add Judge</button>
+                    <input type="text" id="judgeName" placeholder="Judge Name/Role" />
+                    <input type="text" id="judgeFocus" placeholder="Judging Focus (optional)" />
+
+                    <!-- Multi-Source Selection -->
+                    <div style="margin: 16px 0;">
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-size: 14px; color: #cc8b5c; margin-bottom: 12px; font-weight: 600;">
+                                📊 Select one or more sources to create your expert judge:
+                            </div>
+                            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                                <button class="judge-source-btn selected" id="manualSourceBtn" onclick="toggleJudgeSourceButton('manual')">
+                                    ✍️ Manual Description
+                                </button>
+                                <button class="judge-source-btn" id="cvSourceBtn" onclick="toggleJudgeSourceButton('cv')">
+                                    📄 Upload CV/Resume
+                                </button>
+                                <button class="judge-source-btn" id="linkedinSourceBtn" onclick="toggleJudgeSourceButton('linkedin')">
+                                    📄 LinkedIn PDF
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Description Section (shown by default) -->
+                        <div id="manualSection" style="display: block; margin-bottom: 16px;">
+                            <textarea id="judgePrompt"
+                                placeholder="Describe the judge's background, expertise, and evaluation criteria..."
+                                style="height: 120px;" class="upload-input"></textarea>
+                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                ✍️ Manual description will be combined with other sources to create comprehensive judge persona
+                            </div>
+                        </div>
+
+                        <!-- CV Upload Section -->
+                        <div id="cvSection" style="display: none; margin-bottom: 16px;">
+                            <input type="file" id="cvUpload" accept=".pdf,.txt,.doc,.docx" class="upload-input" />
+                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                📄 CV/Resume will be parsed to understand experience and create expert judge profile
+                            </div>
+                        </div>
+
+                        <!-- LinkedIn PDF Upload Section -->
+                        <div id="linkedinSection" style="display: none; margin-bottom: 16px;">
+                            <div style="background: #2f2d2a; border: 1px solid #4a453e; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                                <div style="color: #cc8b5c; font-weight: 600; margin-bottom: 8px;">📋 How to Download Your LinkedIn Profile as PDF:</div>
+                                <ol style="color: #d4ab7a; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.5;">
+                                    <li>Go to your LinkedIn profile page</li>
+                                    <li>Click "More" → "Save to PDF"</li>
+                                    <li>Download the generated PDF file</li>
+                                    <li>Upload it below to create your expert judge</li>
+                                </ol>
+                            </div>
+                            <input type="file" id="linkedinPdfUpload" accept=".pdf" class="upload-input" />
+                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                📄 LinkedIn PDF will be analyzed to extract professional background and expertise
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress indicator -->
+                    <div id="judgeCreationProgress" style="display: none; margin: 16px 0; text-align: center;">
+                        <div class="spinner" style="margin: 0 auto 8px;"></div>
+                        <span id="judgeCreationStatus" style="color: #a8a8a8; font-size: 14px;">Creating expert judge
+                            persona...</span>
+                    </div>
+
+                    <button class="btn" onclick="addCustomJudge()">🤖 Create AI Expert Judge</button>
                 </div>
             </div>
 
@@ -987,6 +1128,63 @@
         </div>
     </div>
 
+    <!-- JSZip for client-side ZIP creation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Configure API endpoints based on environment -->
+    <script>
+        // Auto-detect Firebase emulator configuration
+        // This allows the app to work without hardcoded ports
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Development mode - use Firebase emulator
+            window.HACKJUDGE_PROJECT_ID = 'hackathon-judgementals';
+
+            // Auto-detect or use environment-specific port
+            // You can override this by setting window.HACKJUDGE_FUNCTIONS_PORT before this script
+            if (!window.HACKJUDGE_FUNCTIONS_PORT) {
+                window.HACKJUDGE_FUNCTIONS_PORT = '5001'; // Firebase Functions emulator default
+            }
+
+            console.log('🔧 Development mode detected');
+            console.log('📡 Project ID:', window.HACKJUDGE_PROJECT_ID);
+            console.log('🚪 Functions Port:', window.HACKJUDGE_FUNCTIONS_PORT);
+        }
+    </script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+        import { getFirestore, collection, addDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAcddMoJfDaf52R4OJAkj4l750S-UAt128",
+            authDomain: "hackathon-judgementals.firebaseapp.com",
+            projectId: "hackathon-judgementals",
+            storageBucket: "hackathon-judgementals.firebasestorage.app",
+            messagingSenderId: "492397306943",
+            appId: "1:492397306943:web:d9e0497fd9534809ebc48a",
+            measurementId: "G-2Z8JJ6WT76"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+        const db = getFirestore(app);
+
+        // Make Firebase available globally
+        window.firebaseStorage = storage;
+        window.firebaseFirestore = db;
+        window.firebaseRef = ref;
+        window.firebaseUploadBytes = uploadBytes;
+        window.firebaseGetDownloadURL = getDownloadURL;
+        window.firebaseCollection = collection;
+        window.firebaseAddDoc = addDoc;
+        window.firebaseDoc = doc;
+        window.firebaseSetDoc = setDoc;
+    </script>
     <script src="app.js"></script>
 
     <script>

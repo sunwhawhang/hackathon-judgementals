@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Firebase Storage rules for Hackathon Judgementals
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow anyone to upload files to the projects folder
+    match /projects/{projectName}/{allPaths=**} {
+      allow read, write: if true;
+    }
+    
+    // Allow ZIP file uploads for processing
+    match /zips/{zipFile} {
+      allow read, write: if true;
+    }
+    
+    // Deny everything else by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
