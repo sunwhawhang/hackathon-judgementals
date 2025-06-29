@@ -1,4 +1,5 @@
 import { onRequest } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import { Anthropic } from '@anthropic-ai/sdk';
 import Busboy from 'busboy';
@@ -8,6 +9,9 @@ import * as yazl from 'yazl';
 import { simpleGit } from 'simple-git';
 import * as fs from 'fs-extra';
 import * as os from 'os';
+
+// Define the secret for production, but use environment variable for local development
+const anthropicApiKey = defineSecret('anthropic-api-key');
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -77,19 +81,14 @@ const IGNORED_EXTENSIONS = [
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB per file
 const MAX_TOTAL_SIZE = 10 * 1024 * 1024; // 10MB total per project
 
-// Initialize Anthropic
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY || ''
-});
-
 function shouldIgnoreFile(filepath: string): boolean {
     const filename = filepath.toLowerCase();
     const pathParts = filepath.split('/');
-    
+
     // Check if any directory in the path should be ignored
     for (const part of pathParts) {
         const lowerPart = part.toLowerCase();
-        
+
         // Ignore hidden directories
         if (part.startsWith('.') && part !== '.' && part !== '..') {
             const allowedDotFiles = ['.env.example', '.gitignore', '.github', '.gitattributes', '.editorconfig'];
@@ -97,19 +96,19 @@ function shouldIgnoreFile(filepath: string): boolean {
                 return true;
             }
         }
-        
+
         // Check against explicit ignore list
         if (IGNORED_DIRECTORIES.includes(lowerPart)) {
             return true;
         }
     }
-    
+
     // Check file extension
     const ext = extname(filename);
     if (IGNORED_EXTENSIONS.includes(ext)) {
         return true;
     }
-    
+
     // Ignore hidden files
     const basename = pathParts[pathParts.length - 1];
     if (basename.startsWith('.')) {
@@ -118,7 +117,7 @@ function shouldIgnoreFile(filepath: string): boolean {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -131,7 +130,7 @@ function isTextFile(filename: string, mimetype?: string): boolean {
             return true;
         }
     }
-    
+
     const ext = extname(filename.toLowerCase());
     const textExtensions = [
         '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.hpp',
@@ -140,7 +139,7 @@ function isTextFile(filename: string, mimetype?: string): boolean {
         '.md', '.txt', '.log', '.cfg', '.conf', '.ini', '.env', '.sh', '.bat',
         '.sql', '.r', '.m', '.pl', '.lua', '.vim', '.dockerfile', '.makefile'
     ];
-    
+
     return textExtensions.includes(ext) || filename.toLowerCase().includes('makefile') || filename.toLowerCase().includes('dockerfile');
 }
 
@@ -160,12 +159,39 @@ function getFileType(filename: string): string {
         '.md': 'text/markdown',
         '.txt': 'text/plain'
     };
-    
+
     return typeMap[ext] || 'application/octet-stream';
 }
 
 async function callClaude(prompt: string, seed: number): Promise<{ content: string; usage: any }> {
     try {
+        // For local development, prioritize environment variable
+        // For production, fall back to Firebase secret
+        let apiKey: string | undefined;
+        
+        // First try environment variable (local development)
+        apiKey = process.env.ANTHROPIC_API_KEY;
+        
+        // If not found and we're in production, try the secret
+        if (!apiKey) {
+            try {
+                apiKey = anthropicApiKey.value();
+            } catch (secretError) {
+                console.warn('Failed to access Firebase secret, using environment variable fallback');
+            }
+        }
+        
+        if (!apiKey) {
+            throw new Error('Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable for local development.');
+        }
+
+        console.log('🔑 Using API key for Claude request (key length:', apiKey.length, 'chars)');
+
+        // Initialize Anthropic with the API key
+        const anthropic = new Anthropic({
+            apiKey: apiKey
+        });
+
         const response = await anthropic.messages.create({
             model: 'claude-3-5-sonnet-20241022',
             max_tokens: 2000,
@@ -177,7 +203,7 @@ async function callClaude(prompt: string, seed: number): Promise<{ content: stri
             ],
             system: `You are evaluating hackathon projects. Use consistent evaluation criteria. Random seed: ${seed}`
         });
-        
+
         return {
             content: response.content[0].type === 'text' ? response.content[0].text : '',
             usage: response.usage
@@ -199,25 +225,25 @@ async function processMultipartData(req: any): Promise<{ fields: Record<string, 
     return new Promise((resolve, reject) => {
         const fields: Record<string, string> = {};
         const files: ProcessedFile[] = [];
-        
+
         console.log('Processing multipart data...');
         console.log('Request headers:', req.headers);
-        
+
         const bb = Busboy({ headers: req.headers });
-        
+
         bb.on('field', (name: string, val: string) => {
             console.log(`Field received: ${name} = ${val}`);
             fields[name] = val;
         });
-        
+
         bb.on('file', (name: string, file: NodeJS.ReadableStream, info: { filename: string; encoding: string; mimeType: string }) => {
             console.log(`File received: ${name}, filename: ${info.filename}, mimetype: ${info.mimeType}`);
             const chunks: Buffer[] = [];
-            
+
             file.on('data', (chunk: Buffer) => {
                 chunks.push(chunk);
             });
-            
+
             file.on('end', () => {
                 console.log(`File processing complete: ${info.filename}, size: ${Buffer.concat(chunks).length} bytes`);
                 files.push({
@@ -228,22 +254,22 @@ async function processMultipartData(req: any): Promise<{ fields: Record<string, 
                 });
             });
         });
-        
+
         bb.on('finish', () => {
             console.log(`Multipart processing finished. Fields: ${Object.keys(fields).length}, Files: ${files.length}`);
             resolve({ fields, files });
         });
-        
+
         bb.on('error', (error: any) => {
             console.error('Busboy error:', error);
             reject(error);
         });
-        
+
         req.on('error', (error: any) => {
             console.error('Request error:', error);
             reject(error);
         });
-        
+
         req.pipe(bb);
     });
 }
@@ -254,33 +280,33 @@ async function processUploadedFiles(
     clientFilterStats?: string
 ): Promise<UploadResponse> {
     console.log(`Processing ${files.length} files for project: ${projectName}`);
-    
+
     const processedFiles: ProjectFile[] = [];
     let totalSize = 0;
     let skippedFiles = 0;
     const warnings: string[] = [];
     const droppedSummary: string[] = [];
-    
+
     for (const file of files) {
         try {
             if (shouldIgnoreFile(file.originalname)) {
                 skippedFiles++;
                 continue;
             }
-            
+
             if (file.buffer.length > MAX_FILE_SIZE) {
                 skippedFiles++;
                 continue;
             }
-            
+
             if (totalSize + file.buffer.length > MAX_TOTAL_SIZE) {
                 skippedFiles++;
                 continue;
             }
-            
+
             const isText = isTextFile(file.originalname, file.mimetype);
             const content = isText ? file.buffer.toString('utf-8') : file.buffer.toString('base64');
-            
+
             processedFiles.push({
                 name: file.originalname,
                 content,
@@ -288,14 +314,14 @@ async function processUploadedFiles(
                 size: file.buffer.length,
                 path: file.originalname
             });
-            
+
             totalSize += file.buffer.length;
         } catch (error) {
             console.error(`Error processing file ${file.originalname}:`, error);
             skippedFiles++;
         }
     }
-    
+
     // Parse client-side filtering stats if provided
     if (clientFilterStats) {
         try {
@@ -307,11 +333,11 @@ async function processUploadedFiles(
             console.error('Error parsing client filter stats:', error);
         }
     }
-    
+
     if (skippedFiles > 0) {
         warnings.push(`${skippedFiles} files were skipped due to size limits`);
     }
-    
+
     return {
         success: true,
         projectName,
@@ -325,7 +351,7 @@ async function processUploadedFiles(
 
 function buildDroppedSummaryFromStats(stats: ClientFilterStats): string[] {
     const droppedSummary: string[] = [];
-    
+
     if (stats.filteredCount > 0) {
         droppedSummary.push(`📊 Processing Summary: ${stats.filteredCount} files excluded from ${stats.totalFiles} total files`);
 
@@ -395,82 +421,82 @@ function buildDroppedSummaryFromStats(stats: ClientFilterStats): string[] {
             });
         }
     }
-    
+
     return droppedSummary;
 }
 
 async function cloneGitHubRepository(githubUrl: string, projectName: string): Promise<UploadResponse> {
     const tempDir = join(os.tmpdir(), `clone-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
-    
+
     try {
         console.log(`Cloning GitHub repository: ${githubUrl} to ${tempDir}`);
-        
+
         // Clone the repository
         const git = simpleGit();
         await git.clone(githubUrl, tempDir, { '--depth': 1 }); // Shallow clone for faster download
-        
+
         console.log(`Repository cloned successfully to ${tempDir}`);
-        
+
         // Read all files from the cloned repository and build detailed filtering stats
         const allFiles = await readAllFilesInDirectory(tempDir, tempDir);
         const filteredFiles = await readFilesFromDirectory(tempDir, tempDir);
         console.log(`Found ${allFiles.length} total files, ${filteredFiles.length} after filtering`);
         console.log('Sample all files:', allFiles.slice(0, 5).map(f => f.originalname));
         console.log('Sample filtered files:', filteredFiles.slice(0, 5).map(f => f.originalname));
-        
+
         // Build the exact same filtering stats as folder uploads
         const clientFilterStats = buildGitHubFilteringStats(allFiles, filteredFiles, githubUrl);
         console.log('GitHub filtering stats:', JSON.stringify(clientFilterStats, null, 2));
-        
+
         // Process files with the generated client stats (same as folder upload)
         const result = await processUploadedFiles(filteredFiles, projectName, JSON.stringify(clientFilterStats));
         console.log('GitHub result droppedSummary:', result.droppedSummary);
-        
+
         // Clean up temporary directory
         await fs.remove(tempDir);
         console.log(`Cleaned up temporary directory: ${tempDir}`);
-        
+
         return result;
-        
+
     } catch (error) {
         console.error('Error cloning GitHub repository:', error);
-        
+
         // Clean up on error
         try {
             await fs.remove(tempDir);
         } catch (cleanupError) {
             console.error('Error cleaning up temp directory:', cleanupError);
         }
-        
+
         throw new Error(`Failed to clone repository: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
 async function readAllFilesInDirectory(dirPath: string, basePath: string): Promise<ProcessedFile[]> {
     const files: ProcessedFile[] = [];
-    
+
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
         const fullPath = join(dirPath, entry.name);
         let relativePath = fullPath.replace(basePath, '');
         if (relativePath.startsWith('/')) {
             relativePath = relativePath.substring(1);
         }
-        
+
         if (entry.isDirectory()) {
             // Skip git directory but include everything else for counting
             if (entry.name === '.git') {
                 continue;
             }
-            
+
             // Recursively read subdirectory without filtering
             const subFiles = await readAllFilesInDirectory(fullPath, basePath);
             files.push(...subFiles);
         } else if (entry.isFile()) {
             try {
                 const stats = await fs.stat(fullPath);
-                
+
                 // Create a file entry with size info for filtering analysis
                 const fileEntry = {
                     fieldname: 'file',
@@ -479,9 +505,9 @@ async function readAllFilesInDirectory(dirPath: string, basePath: string): Promi
                     buffer: Buffer.alloc(1), // Minimal buffer
                     fileSize: stats.size // Store actual file size
                 } as ProcessedFile & { fileSize: number };
-                
+
                 files.push(fileEntry);
-                
+
             } catch (error) {
                 console.error(`Error reading file ${fullPath}:`, error);
                 // Skip files that can't be read
@@ -489,7 +515,7 @@ async function readAllFilesInDirectory(dirPath: string, basePath: string): Promi
             }
         }
     }
-    
+
     return files;
 }
 
@@ -507,7 +533,7 @@ function buildGitHubFilteringStats(allFiles: ProcessedFile[], filteredFiles: Pro
     // Process each file to categorize drops (same logic as folder upload)
     for (const file of allFiles) {
         const filePath = file.originalname;
-        
+
         // Track files by directory
         const dir = filePath.substring(0, filePath.lastIndexOf('/')) || '.';
         if (!filesByDirectory[dir]) {
@@ -551,7 +577,7 @@ function buildGitHubFilteringStats(allFiles: ProcessedFile[], filteredFiles: Pro
     }
 
     const filterRatio = totalFiles > 0 ? ((filteredCount / totalFiles) * 100).toFixed(1) : '0';
-    
+
     return {
         totalFiles: totalFiles,
         filteredFiles: filteredFiles.length,
@@ -583,7 +609,7 @@ function buildZipFilteringStats(allZipEntries: any[], extractedFiles: ProcessedF
         }
 
         const filePath = entry.fileName;
-        
+
         // Track files by directory
         const dir = filePath.substring(0, filePath.lastIndexOf('/')) || '.';
         if (!filesByDirectory[dir]) {
@@ -626,7 +652,7 @@ function buildZipFilteringStats(allZipEntries: any[], extractedFiles: ProcessedF
     }
 
     const filterRatio = totalFiles > 0 ? ((filteredCount / totalFiles) * 100).toFixed(1) : '0';
-    
+
     return {
         totalFiles: totalFiles,
         filteredFiles: extractedFiles.length,
@@ -641,22 +667,22 @@ function buildZipFilteringStats(allZipEntries: any[], extractedFiles: ProcessedF
 
 async function readFilesFromDirectory(dirPath: string, basePath: string): Promise<ProcessedFile[]> {
     const files: ProcessedFile[] = [];
-    
+
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
         const fullPath = join(dirPath, entry.name);
         let relativePath = fullPath.replace(basePath, '');
         if (relativePath.startsWith('/')) {
             relativePath = relativePath.substring(1);
         }
-        
+
         if (entry.isDirectory()) {
             // Skip git directory and other ignored directories
             if (shouldIgnoreFile(relativePath) || entry.name === '.git') {
                 continue;
             }
-            
+
             // Recursively read subdirectory
             const subFiles = await readFilesFromDirectory(fullPath, basePath);
             files.push(...subFiles);
@@ -665,25 +691,25 @@ async function readFilesFromDirectory(dirPath: string, basePath: string): Promis
             if (shouldIgnoreFile(relativePath)) {
                 continue;
             }
-            
+
             try {
                 const stats = await fs.stat(fullPath);
-                
+
                 // Skip files larger than 1MB
                 if (stats.size > MAX_FILE_SIZE) {
                     continue;
                 }
-                
+
                 const buffer = await fs.readFile(fullPath);
                 const mimetype = getFileType(entry.name);
-                
+
                 files.push({
                     fieldname: 'file',
                     originalname: relativePath,
                     mimetype: mimetype,
                     buffer: buffer
                 });
-                
+
             } catch (error) {
                 console.error(`Error reading file ${fullPath}:`, error);
                 // Skip files that can't be read
@@ -691,45 +717,45 @@ async function readFilesFromDirectory(dirPath: string, basePath: string): Promis
             }
         }
     }
-    
+
     return files;
 }
 
 async function processZipFile(zipFile: ProcessedFile, projectName: string): Promise<UploadResponse> {
     const tempDir = join(os.tmpdir(), `zip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
-    
+
     try {
         console.log(`Extracting ZIP file: ${zipFile.originalname} to ${tempDir}`);
-        
+
         // Create temp directory
         await fs.ensureDir(tempDir);
-        
+
         // Extract ZIP file and collect both all entries and extracted files in one pass
         const { allEntries, extractedFiles } = await extractZipFileWithStats(zipFile.buffer, tempDir);
         console.log(`Found ${allEntries.length} total entries, extracted ${extractedFiles.length} files from ZIP`);
-        
+
         // Build the exact same filtering stats as folder uploads
         const clientFilterStats = buildZipFilteringStats(allEntries, extractedFiles, zipFile.originalname);
-        
+
         // Process files with the generated client stats (same as folder upload)
         const result = await processUploadedFiles(extractedFiles, projectName, JSON.stringify(clientFilterStats));
-        
+
         // Clean up temporary directory
         await fs.remove(tempDir);
         console.log(`Cleaned up temporary directory: ${tempDir}`);
-        
+
         return result;
-        
+
     } catch (error) {
         console.error('Error processing ZIP file:', error);
-        
+
         // Clean up on error
         try {
             await fs.remove(tempDir);
         } catch (cleanupError) {
             console.error('Error cleaning up temp directory:', cleanupError);
         }
-        
+
         throw new Error(`Failed to process ZIP file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
@@ -738,88 +764,88 @@ async function extractZipFileWithStats(zipBuffer: Buffer, extractPath: string): 
     return new Promise((resolve, reject) => {
         const allEntries: yauzl.Entry[] = [];
         const extractedFiles: ProcessedFile[] = [];
-        
+
         yauzl.fromBuffer(zipBuffer, { lazyEntries: true }, (err, zipfile) => {
             if (err) {
                 reject(err);
                 return;
             }
-            
+
             if (!zipfile) {
                 reject(new Error('Failed to read ZIP file'));
                 return;
             }
-            
+
             zipfile.readEntry();
-            
+
             zipfile.on('entry', (entry: yauzl.Entry) => {
                 // Add ALL entries (files and directories) to allEntries for proper stats
                 allEntries.push(entry);
-                
+
                 // Skip directories for extraction
                 if (/\/$/.test(entry.fileName)) {
                     zipfile.readEntry();
                     return;
                 }
-                
+
                 // Skip files that should be ignored
                 if (shouldIgnoreFile(entry.fileName)) {
                     zipfile.readEntry();
                     return;
                 }
-                
+
                 // Skip files larger than 1MB
                 if (entry.uncompressedSize > MAX_FILE_SIZE) {
                     console.log(`Skipping large file: ${entry.fileName} (${entry.uncompressedSize} bytes)`);
                     zipfile.readEntry();
                     return;
                 }
-                
+
                 zipfile.openReadStream(entry, (streamErr, readStream) => {
                     if (streamErr) {
                         console.error(`Error reading ${entry.fileName}:`, streamErr);
                         zipfile.readEntry();
                         return;
                     }
-                    
+
                     if (!readStream) {
                         console.error(`No stream for ${entry.fileName}`);
                         zipfile.readEntry();
                         return;
                     }
-                    
+
                     const chunks: Buffer[] = [];
-                    
+
                     readStream.on('data', (chunk: Buffer) => {
                         chunks.push(chunk);
                     });
-                    
+
                     readStream.on('end', () => {
                         const buffer = Buffer.concat(chunks);
                         const mimetype = getFileType(entry.fileName);
-                        
+
                         extractedFiles.push({
                             fieldname: 'file',
                             originalname: entry.fileName,
                             mimetype: mimetype,
                             buffer: buffer
                         });
-                        
+
                         zipfile.readEntry();
                     });
-                    
+
                     readStream.on('error', (readErr) => {
                         console.error(`Error reading stream for ${entry.fileName}:`, readErr);
                         zipfile.readEntry();
                     });
                 });
             });
-            
+
             zipfile.on('end', () => {
                 console.log(`ZIP extraction complete: ${allEntries.length} total entries, ${extractedFiles.length} files extracted`);
                 resolve({ allEntries, extractedFiles });
             });
-            
+
             zipfile.on('error', (zipErr) => {
                 console.error('ZIP file error:', zipErr);
                 reject(zipErr);
@@ -831,85 +857,85 @@ async function extractZipFileWithStats(zipBuffer: Buffer, extractPath: string): 
 async function extractZipFile(zipBuffer: Buffer, extractPath: string): Promise<ProcessedFile[]> {
     return new Promise((resolve, reject) => {
         const files: ProcessedFile[] = [];
-        
+
         yauzl.fromBuffer(zipBuffer, { lazyEntries: true }, (err, zipfile) => {
             if (err) {
                 reject(err);
                 return;
             }
-            
+
             if (!zipfile) {
                 reject(new Error('Failed to read ZIP file'));
                 return;
             }
-            
+
             zipfile.readEntry();
-            
+
             zipfile.on('entry', (entry: yauzl.Entry) => {
                 // Skip directories
                 if (/\/$/.test(entry.fileName)) {
                     zipfile.readEntry();
                     return;
                 }
-                
+
                 // Skip files that should be ignored
                 if (shouldIgnoreFile(entry.fileName)) {
                     zipfile.readEntry();
                     return;
                 }
-                
+
                 // Skip files larger than 1MB
                 if (entry.uncompressedSize > MAX_FILE_SIZE) {
                     console.log(`Skipping large file: ${entry.fileName} (${entry.uncompressedSize} bytes)`);
                     zipfile.readEntry();
                     return;
                 }
-                
+
                 zipfile.openReadStream(entry, (streamErr, readStream) => {
                     if (streamErr) {
                         console.error(`Error reading ${entry.fileName}:`, streamErr);
                         zipfile.readEntry();
                         return;
                     }
-                    
+
                     if (!readStream) {
                         console.error(`No stream for ${entry.fileName}`);
                         zipfile.readEntry();
                         return;
                     }
-                    
+
                     const chunks: Buffer[] = [];
-                    
+
                     readStream.on('data', (chunk: Buffer) => {
                         chunks.push(chunk);
                     });
-                    
+
                     readStream.on('end', () => {
                         const buffer = Buffer.concat(chunks);
                         const mimetype = getFileType(entry.fileName);
-                        
+
                         files.push({
                             fieldname: 'file',
                             originalname: entry.fileName,
                             mimetype: mimetype,
                             buffer: buffer
                         });
-                        
+
                         zipfile.readEntry();
                     });
-                    
+
                     readStream.on('error', (readErr) => {
                         console.error(`Error reading stream for ${entry.fileName}:`, readErr);
                         zipfile.readEntry();
                     });
                 });
             });
-            
+
             zipfile.on('end', () => {
                 console.log(`ZIP extraction complete: ${files.length} files extracted`);
                 resolve(files);
             });
-            
+
             zipfile.on('error', (zipErr) => {
                 console.error('ZIP file error:', zipErr);
                 reject(zipErr);
@@ -920,16 +946,16 @@ async function extractZipFile(zipBuffer: Buffer, extractPath: string): Promise<P
 
 async function processZipFromStorage(zipPath: string, fileName: string, projectName: string): Promise<UploadResponse> {
     console.log(`Processing ZIP file from Storage: ${zipPath}`);
-    
+
     try {
         // Download ZIP file from Firebase Storage
         const bucket = admin.storage().bucket();
         const file = bucket.file(zipPath);
-        
+
         console.log(`Downloading ZIP file from Storage: ${zipPath}`);
         const [zipBuffer] = await file.download();
         console.log(`Downloaded ZIP file, size: ${zipBuffer.length} bytes`);
-        
+
         // Create a ProcessedFile object for the ZIP
         const zipFile: ProcessedFile = {
             fieldname: 'file',
@@ -937,10 +963,10 @@ async function processZipFromStorage(zipPath: string, fileName: string, projectN
             mimetype: 'application/zip',
             buffer: zipBuffer
         };
-        
+
         // Process using existing ZIP processing logic
         const result = await processZipFile(zipFile, projectName);
-        
+
         // Clean up the ZIP file from Storage
         try {
             await file.delete();
@@ -948,180 +974,190 @@ async function processZipFromStorage(zipPath: string, fileName: string, projectN
         } catch (deleteError) {
             console.warn(`Failed to delete ZIP file from Storage: ${deleteError}`);
         }
-        
+
         return result;
-        
+
     } catch (error) {
         console.error('Error processing ZIP from Storage:', error);
         throw new Error(`Failed to process ZIP file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
-export const api = onRequest({ cors: true, maxInstances: 10 }, async (req, res) => {
-    // Set CORS headers explicitly
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, x-upload-type, x-project-name, x-file-name');
-    
-    // Handle preflight OPTIONS requests
-    if (req.method === 'OPTIONS') {
-        res.status(204).send('');
-        return;
-    }
-    
-    const path = req.path;
-    
-    console.log(`API request: ${req.method} ${path}`);
-    console.log('Full request URL:', req.url);
-    console.log('Request path parts:', { path, originalUrl: req.originalUrl });
-    
-    try {
-        if (path === '/upload' || path === '/api/upload') {
-            if (req.method !== 'POST') {
-                res.status(405).json({ error: 'Method not allowed' });
-                return;
-            }
-            
-            // Check content type to determine how to handle the request
-            const contentType = req.headers['content-type'];
-            
-            if (contentType && contentType.includes('application/json')) {
-                // Handle GitHub URL upload as JSON
-                const body = req.body;
-                const uploadType = body.uploadType;
-                const projectName = body.projectName || 'Unnamed Project';
-                
-                console.log(`JSON Upload request: uploadType="${uploadType}" for project "${projectName}"`);
-                
-                if (uploadType === 'github') {
-                    const githubUrl = body.githubUrl;
-                    console.log(`GitHub repository upload: ${githubUrl}`);
-                    
-                    if (!githubUrl) {
-                        res.status(400).json({ error: 'GitHub URL is required' });
-                        return;
-                    }
-                    
-                    // Validate GitHub URL format
-                    const githubUrlRegex = /^https?:\/\/(www\.)?github\.com\/[\w\-\.]+\/[\w\-\.]+\/?$/;
-                    if (!githubUrlRegex.test(githubUrl)) {
-                        res.status(400).json({ error: 'Invalid GitHub URL format' });
-                        return;
-                    }
-                    
-                    try {
-                        const result = await cloneGitHubRepository(githubUrl, projectName);
-                        res.json(result);
-                        return;
-                    } catch (error) {
-                        console.error('GitHub cloning failed:', error);
-                        res.status(500).json({ 
-                            error: 'Failed to clone GitHub repository',
-                            message: error instanceof Error ? error.message : 'Unknown error'
-                        });
-                        return;
-                    }
-                } else if (uploadType === 'zip') {
-                    const zipPath = body.zipPath;
-                    const fileName = body.fileName || 'upload.zip';
-                    console.log(`ZIP file upload from Storage: ${zipPath}`);
-                    
-                    if (!zipPath) {
-                        res.status(400).json({ error: 'ZIP path is required' });
-                        return;
-                    }
-                    
-                    try {
-                        const result = await processZipFromStorage(zipPath, fileName, projectName);
-                        res.json(result);
-                        return;
-                    } catch (error) {
-                        console.error('ZIP processing failed:', error);
-                        res.status(500).json({ 
-                            error: 'Failed to process ZIP file',
-                            message: error instanceof Error ? error.message : 'Unknown error'
-                        });
-                        return;
+// For local development, we'll use environment variables and exclude secrets
+// For production deployment, we need to add secrets back to the configuration
+const isProduction = process.env.NODE_ENV === 'production';
+
+export const api = onRequest(
+    {
+        cors: true,
+        maxInstances: 10,
+        ...(isProduction && { secrets: [anthropicApiKey] })
+    },
+    async (req, res) => {
+        // Set CORS headers explicitly
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.set('Access-Control-Allow-Headers', 'Content-Type, x-upload-type, x-project-name, x-file-name');
+
+        // Handle preflight OPTIONS requests
+        if (req.method === 'OPTIONS') {
+            res.status(204).send('');
+            return;
+        }
+
+        const path = req.path;
+
+        console.log(`API request: ${req.method} ${path}`);
+        console.log('Full request URL:', req.url);
+        console.log('Request path parts:', { path, originalUrl: req.originalUrl });
+
+        try {
+            if (path === '/upload' || path === '/api/upload') {
+                if (req.method !== 'POST') {
+                    res.status(405).json({ error: 'Method not allowed' });
+                    return;
+                }
+
+                // Check content type to determine how to handle the request
+                const contentType = req.headers['content-type'];
+
+                if (contentType && contentType.includes('application/json')) {
+                    // Handle GitHub URL upload as JSON
+                    const body = req.body;
+                    const uploadType = body.uploadType;
+                    const projectName = body.projectName || 'Unnamed Project';
+
+                    console.log(`JSON Upload request: uploadType="${uploadType}" for project "${projectName}"`);
+
+                    if (uploadType === 'github') {
+                        const githubUrl = body.githubUrl;
+                        console.log(`GitHub repository upload: ${githubUrl}`);
+
+                        if (!githubUrl) {
+                            res.status(400).json({ error: 'GitHub URL is required' });
+                            return;
+                        }
+
+                        // Validate GitHub URL format
+                        const githubUrlRegex = /^https?:\/\/(www\.)?github\.com\/[\w\-\.]+\/[\w\-\.]+\/?$/;
+                        if (!githubUrlRegex.test(githubUrl)) {
+                            res.status(400).json({ error: 'Invalid GitHub URL format' });
+                            return;
+                        }
+
+                        try {
+                            const result = await cloneGitHubRepository(githubUrl, projectName);
+                            res.json(result);
+                            return;
+                        } catch (error) {
+                            console.error('GitHub cloning failed:', error);
+                            res.status(500).json({
+                                error: 'Failed to clone GitHub repository',
+                                message: error instanceof Error ? error.message : 'Unknown error'
+                            });
+                            return;
+                        }
+                    } else if (uploadType === 'zip') {
+                        const zipPath = body.zipPath;
+                        const fileName = body.fileName || 'upload.zip';
+                        console.log(`ZIP file upload from Storage: ${zipPath}`);
+
+                        if (!zipPath) {
+                            res.status(400).json({ error: 'ZIP path is required' });
+                            return;
+                        }
+
+                        try {
+                            const result = await processZipFromStorage(zipPath, fileName, projectName);
+                            res.json(result);
+                            return;
+                        } catch (error) {
+                            console.error('ZIP processing failed:', error);
+                            res.status(500).json({
+                                error: 'Failed to process ZIP file',
+                                message: error instanceof Error ? error.message : 'Unknown error'
+                            });
+                            return;
+                        }
                     }
                 }
-            }
-            
-            // Handle multipart uploads (folder only - ZIP and GitHub use different methods)
-            const { fields, files } = await processMultipartData(req);
-            const projectName = fields.projectName || 'Unnamed Project';
-            const uploadType = fields.uploadType;
-            
-            console.log(`Multipart Upload request: uploadType="${uploadType}" for project "${projectName}"`);
-            
-            // Only folder uploads should reach this point
-            if (uploadType === 'zip') {
-                res.status(400).json({ error: 'ZIP uploads should use binary format, not multipart' });
-                return;
-            }
-            
-            const clientFilterStats = fields.clientFilterStats;
-            console.log(`File upload request: ${files.length} files for project "${projectName}"`);
-            
-            const result = await processUploadedFiles(files, projectName, clientFilterStats);
-            res.json(result);
-            
-        } else if (path === '/claude' || path === '/api/claude') {
-            if (req.method !== 'POST') {
-                res.status(405).json({ error: 'Method not allowed' });
-                return;
-            }
-            
-            const requestData: ClaudeRequest = req.body;
-            
-            if (!requestData.prompt) {
-                res.status(400).json({ error: 'Prompt is required' });
-                return;
-            }
-            
-            try {
-                const response = await callClaude(requestData.prompt, requestData.seed || 12345);
-                res.json({
-                    success: true,
-                    response: response.content,
-                    usage: response.usage
-                });
-            } catch (error) {
-                // Return fallback evaluation on API error
-                const fallbackResponse = {
-                    summary: "API call failed - providing fallback evaluation.",
-                    score: 5,
-                    likes: ["Project structure appears organized", "Files are properly named"],
-                    dislikes: ["Unable to perform detailed analysis due to API error"]
-                };
-                
-                res.json({
-                    success: true,
-                    response: JSON.stringify(fallbackResponse),
-                    usage: { input_tokens: 0, output_tokens: 0 },
-                    warning: 'API call failed - using fallback evaluation'
-                });
-            }
-            
-        } else if (path === '/api/download') {
-            if (req.method !== 'POST') {
-                res.status(405).json({ error: 'Method not allowed' });
-                return;
-            }
-            
-            const { projectName, files } = req.body;
-            
-            if (!files || !Array.isArray(files)) {
-                res.status(400).json({ error: 'Files array is required' });
-                return;
-            }
-            
-            console.log(`Creating ZIP download for ${files.length} files`);
-            
-            // Create ZIP file
-            const zipFile = new yazl.ZipFile();
-            
-            // Add README
-            const readmeContent = `# ${projectName} - Processed Files
+
+                // Handle multipart uploads (folder only - ZIP and GitHub use different methods)
+                const { fields, files } = await processMultipartData(req);
+                const projectName = fields.projectName || 'Unnamed Project';
+                const uploadType = fields.uploadType;
+
+                console.log(`Multipart Upload request: uploadType="${uploadType}" for project "${projectName}"`);
+
+                // Only folder uploads should reach this point
+                if (uploadType === 'zip') {
+                    res.status(400).json({ error: 'ZIP uploads should use binary format, not multipart' });
+                    return;
+                }
+
+                const clientFilterStats = fields.clientFilterStats;
+                console.log(`File upload request: ${files.length} files for project "${projectName}"`);
+
+                const result = await processUploadedFiles(files, projectName, clientFilterStats);
+                res.json(result);
+
+            } else if (path === '/claude' || path === '/api/claude') {
+                if (req.method !== 'POST') {
+                    res.status(405).json({ error: 'Method not allowed' });
+                    return;
+                }
+
+                const requestData: ClaudeRequest = req.body;
+
+                if (!requestData.prompt) {
+                    res.status(400).json({ error: 'Prompt is required' });
+                    return;
+                }
+
+                try {
+                    const response = await callClaude(requestData.prompt, requestData.seed || 12345);
+                    res.json({
+                        success: true,
+                        response: response.content,
+                        usage: response.usage
+                    });
+                } catch (error) {
+                    // Return fallback evaluation on API error
+                    const fallbackResponse = {
+                        summary: "API call failed - providing fallback evaluation.",
+                        score: 5,
+                        likes: ["Project structure appears organized", "Files are properly named"],
+                        dislikes: ["Unable to perform detailed analysis due to API error"]
+                    };
+
+                    res.json({
+                        success: true,
+                        response: JSON.stringify(fallbackResponse),
+                        usage: { input_tokens: 0, output_tokens: 0 },
+                        warning: 'API call failed - using fallback evaluation'
+                    });
+                }
+
+            } else if (path === '/api/download') {
+                if (req.method !== 'POST') {
+                    res.status(405).json({ error: 'Method not allowed' });
+                    return;
+                }
+
+                const { projectName, files } = req.body;
+
+                if (!files || !Array.isArray(files)) {
+                    res.status(400).json({ error: 'Files array is required' });
+                    return;
+                }
+
+                console.log(`Creating ZIP download for ${files.length} files`);
+
+                // Create ZIP file
+                const zipFile = new yazl.ZipFile();
+
+                // Add README
+                const readmeContent = `# ${projectName} - Processed Files
 
 This ZIP contains the files that were sent to Claude AI for evaluation.
 
@@ -1131,45 +1167,45 @@ Total Files: ${files.length}
 Files included:
 ${files.map((f: ProjectFile) => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
 `;
-            zipFile.addBuffer(Buffer.from(readmeContent, 'utf-8'), 'README.md');
-            
-            // Add each file
-            for (const file of files) {
-                try {
-                    let buffer: Buffer;
-                    if (file.type && (file.type.startsWith('text/') || file.type === 'application/json')) {
-                        buffer = Buffer.from(file.content, 'utf-8');
-                    } else {
-                        buffer = Buffer.from(file.content, 'base64');
+                zipFile.addBuffer(Buffer.from(readmeContent, 'utf-8'), 'README.md');
+
+                // Add each file
+                for (const file of files) {
+                    try {
+                        let buffer: Buffer;
+                        if (file.type && (file.type.startsWith('text/') || file.type === 'application/json')) {
+                            buffer = Buffer.from(file.content, 'utf-8');
+                        } else {
+                            buffer = Buffer.from(file.content, 'base64');
+                        }
+
+                        const cleanPath = file.path
+                            .replace(/^\/+/, '')
+                            .replace(/\.\./g, '__')
+                            .replace(/\\/g, '/');
+
+                        zipFile.addBuffer(buffer, cleanPath);
+                    } catch (fileError) {
+                        console.error(`Error adding file ${file.path} to ZIP:`, fileError);
                     }
-                    
-                    const cleanPath = file.path
-                        .replace(/^\/+/, '')
-                        .replace(/\.\./g, '__')
-                        .replace(/\\/g, '/');
-                    
-                    zipFile.addBuffer(buffer, cleanPath);
-                } catch (fileError) {
-                    console.error(`Error adding file ${file.path} to ZIP:`, fileError);
                 }
+
+                zipFile.end();
+
+                res.setHeader('Content-Type', 'application/zip');
+                res.setHeader('Content-Disposition', `attachment; filename="${projectName}-processed.zip"`);
+
+                zipFile.outputStream.pipe(res);
+
+            } else {
+                res.status(404).json({ error: 'Not found' });
             }
-            
-            zipFile.end();
-            
-            res.setHeader('Content-Type', 'application/zip');
-            res.setHeader('Content-Disposition', `attachment; filename="${projectName}-processed.zip"`);
-            
-            zipFile.outputStream.pipe(res);
-            
-        } else {
-            res.status(404).json({ error: 'Not found' });
+
+        } catch (error) {
+            console.error('API error:', error);
+            res.status(500).json({
+                error: 'Internal server error',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            });
         }
-        
-    } catch (error) {
-        console.error('API error:', error);
-        res.status(500).json({
-            error: 'Internal server error',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
+    });

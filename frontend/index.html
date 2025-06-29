@@ -23,128 +23,14 @@
         }
 
         @font-face {
-            font-family: 'Claude Font 2';
-            src: url('./fonts/183a0d33cd5ef006-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 3';
-            src: url('./fonts/2cc8547efe9f163a-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 4';
-            src: url('./fonts/2d21c5135ef46b39-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 5';
-            src: url('./fonts/34cf6df3ae325a7c-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 6';
-            src: url('./fonts/3b066fe34f61f169-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
             font-family: 'Claude Font 7';
             src: url('./fonts/4e8887750eb14755-s.p.woff2') format('woff2');
             font-display: swap;
         }
 
         @font-face {
-            font-family: 'Claude Font 8';
-            src: url('./fonts/5cc13524e09f5d21-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 9';
-            src: url('./fonts/5fee9713a1748cc9-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
             font-family: 'Claude Font 10';
             src: url('./fonts/6a2030c2a5787e7a-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 11';
-            src: url('./fonts/8217ebd4682cfe49-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 12';
-            src: url('./fonts/a0eafab536ffd221-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 13';
-            src: url('./fonts/a4897545ac341705-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 14';
-            src: url('./fonts/a72997480c14a9d4-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 15';
-            src: url('./fonts/ae9d065a0123ed8a-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 16';
-            src: url('./fonts/b96accb76593e50d-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 17';
-            src: url('./fonts/cfe503504e29ad5d-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 18';
-            src: url('./fonts/d13ff1ddfcb21419-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 19';
-            src: url('./fonts/d4ad98ce6ee578c0-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 20';
-            src: url('./fonts/d7440d3c533a1aec-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 21';
-            src: url('./fonts/db2277a4dc542e54-s.p.woff2') format('woff2');
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Claude Font 22';
-            src: url('./fonts/f6f0b26c2c0e7b63-s.p.woff2') format('woff2');
             font-display: swap;
         }
 
@@ -1051,13 +937,16 @@
                                 📊 Select one or more sources to create your expert judge:
                             </div>
                             <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                                <button class="judge-source-btn selected" id="manualSourceBtn" onclick="toggleJudgeSourceButton('manual')">
+                                <button class="judge-source-btn selected" id="manualSourceBtn"
+                                    onclick="toggleJudgeSourceButton('manual')">
                                     ✍️ Manual Description
                                 </button>
-                                <button class="judge-source-btn" id="cvSourceBtn" onclick="toggleJudgeSourceButton('cv')">
+                                <button class="judge-source-btn" id="cvSourceBtn"
+                                    onclick="toggleJudgeSourceButton('cv')">
                                     📄 Upload CV/Resume
                                 </button>
-                                <button class="judge-source-btn" id="linkedinSourceBtn" onclick="toggleJudgeSourceButton('linkedin')">
+                                <button class="judge-source-btn" id="linkedinSourceBtn"
+                                    onclick="toggleJudgeSourceButton('linkedin')">
                                     📄 LinkedIn PDF
                                 </button>
                             </div>
@@ -1069,7 +958,8 @@
                                 placeholder="Describe the judge's background, expertise, and evaluation criteria..."
                                 style="height: 120px;" class="upload-input"></textarea>
                             <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
-                                ✍️ Manual description will be combined with other sources to create comprehensive judge persona
+                                ✍️ Manual description will be combined with other sources to create comprehensive judge
+                                persona
                             </div>
                         </div>
 
@@ -1083,9 +973,12 @@
 
                         <!-- LinkedIn PDF Upload Section -->
                         <div id="linkedinSection" style="display: none; margin-bottom: 16px;">
-                            <div style="background: #2f2d2a; border: 1px solid #4a453e; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
-                                <div style="color: #cc8b5c; font-weight: 600; margin-bottom: 8px;">📋 How to Download Your LinkedIn Profile as PDF:</div>
-                                <ol style="color: #d4ab7a; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.5;">
+                            <div
+                                style="background: #2f2d2a; border: 1px solid #4a453e; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                                <div style="color: #cc8b5c; font-weight: 600; margin-bottom: 8px;">📋 How to Download
+                                    Your LinkedIn Profile as PDF:</div>
+                                <ol
+                                    style="color: #d4ab7a; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.5;">
                                     <li>Go to your LinkedIn profile page</li>
                                     <li>Click "More" → "Save to PDF"</li>
                                     <li>Download the generated PDF file</li>

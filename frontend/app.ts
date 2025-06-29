@@ -467,7 +467,7 @@ Focus on concrete UX principles and implementation details. Analyze actual inter
 
         projectList.innerHTML = this.projects.map(project => {
             const projectId = project.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-            
+
             console.log(`Rendering project ${project.name}:`, {
                 hasDroppedSummary: !!project.droppedSummary,
                 droppedSummaryLength: project.droppedSummary?.length,
@@ -779,7 +779,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
 
         // Re-enable all buttons after form restore
         toggleOtherUploadMethods(true);
-        
+
         // Re-add event listeners for file inputs since HTML was replaced
         this.initializeFileInputListeners();
     }
@@ -795,19 +795,35 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 if (fileCount > 0) {
                     console.log(`📁 Selected ${fileCount.toLocaleString()} files for upload`);
 
-                    // Step 1: Show immediate file detection
-                    showUploadStatus(`📋 Initializing file upload process...`, false, true);
+                    // Calculate total size for better feedback
+                    let totalSize = 0;
+                    if (target.files) {
+                        for (let i = 0; i < target.files.length; i++) {
+                            totalSize += target.files[i].size;
+                        }
+                    }
+                    const totalSizeMB = totalSize / (1024 * 1024);
 
-                    // Step 2: Show file count after brief delay
+                    // Step 1: Show immediate file detection with size info
+                    const isLargeFolder = fileCount > 1000 || totalSizeMB > 50;
+                    const sizeInfo = totalSizeMB > 1 ? ` (${totalSizeMB.toFixed(1)}MB)` : '';
+                    showUploadStatus(`📋 Analyzing ${fileCount.toLocaleString()} files${sizeInfo}...`, false, true);
+
+                    // Step 2: Show processing with timing based on folder size
+                    const processingDelay = isLargeFolder ? 300 : 150;
                     setTimeout(() => {
-                        showUploadStatus(`📊 Processing ${fileCount.toLocaleString()} files for upload...`, false, true);
-                    }, 150);
+                        const processingMsg = isLargeFolder
+                            ? `📊 Processing large folder (${fileCount.toLocaleString()} files)...`
+                            : `📊 Processing ${fileCount.toLocaleString()} files for upload...`;
+                        showUploadStatus(processingMsg, false, true);
+                    }, processingDelay);
 
                     // Step 3: Show final ready status with upload button
+                    const finalDelay = isLargeFolder ? 800 : 600;
                     setTimeout(() => {
-                        const statusMessage = `📁 ${fileCount.toLocaleString()} files detected and ready to upload`;
+                        const statusMessage = `📁 ${fileCount.toLocaleString()} files ready to upload${sizeInfo}`;
                         showUploadStatus(statusMessage, true, false, true);
-                    }, 600);
+                    }, finalDelay);
 
                     // Show additional feedback for very large projects
                     const uploadSection = document.querySelector('.upload-section') as HTMLElement;
@@ -981,7 +997,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 <p><strong>Uploading ZIP file: ${zipFile.name}</strong></p>
                 <p style="font-size: 14px; color: #a8a8a8;">Size: ${(zipFile.size / 1024 / 1024).toFixed(2)}MB</p>
                 <p style="font-size: 12px; color: #666; margin-top: 8px;">
-                    Uploading to Firebase Storage...
+                    Uploading the ZIP file...
                 </p>
             </div>
         `;
@@ -991,14 +1007,14 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
             const storage = (window as any).firebaseStorage;
             const ref = (window as any).firebaseRef;
             const uploadBytes = (window as any).firebaseUploadBytes;
-            
+
             const zipPath = `zips/${Date.now()}-${zipFile.name}`;
             const zipRef = ref(storage, zipPath);
-            
+
             console.log(`📦 Uploading ZIP to Firebase Storage: ${zipPath}`);
             await uploadBytes(zipRef, zipFile);
             console.log(`✅ ZIP uploaded to Firebase Storage successfully`);
-            
+
             // Update progress
             uploadSection.innerHTML = `
                 <div class="loading">
@@ -1009,7 +1025,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                     </p>
                 </div>
             `;
-            
+
             // Now tell the backend to process the ZIP file from Storage
             const response = await fetch(`${this.API_BASE_URL}/api/upload`, {
                 method: 'POST',
@@ -1071,7 +1087,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
 
         } catch (error) {
             console.error('❌ ZIP upload error:', error);
-            
+
             if (error instanceof Error && error.name === 'AbortError') {
                 this.showError('ZIP upload timed out. Please try a smaller file or check your connection.');
             } else {
@@ -1366,13 +1382,6 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 }
                 filesByDirectory[dir].push(file.name);
 
-                // Check file size first
-                if (file.size > 10 * 1024 * 1024) { // 10MB limit
-                    oversizedFiles.push({ name: filePath, size: file.size });
-                    filteredCount++;
-                    continue;
-                }
-
                 // Check if should be filtered by type/path
                 if (this.shouldFilterFile(filePath)) {
                     // Track which folders/files were dropped
@@ -1394,6 +1403,13 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                         droppedFiles.push(filePath);
                     }
 
+                    filteredCount++;
+                    continue;
+                }
+
+                // Check file size
+                if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                    oversizedFiles.push({ name: filePath, size: file.size });
                     filteredCount++;
                     continue;
                 }
@@ -1625,26 +1641,26 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
     async addCustomJudge(): Promise<void> {
         const nameInput = document.getElementById('judgeName') as HTMLInputElement;
         const focusInput = document.getElementById('judgeFocus') as HTMLInputElement;
-        
+
         // Check which sources are selected
         const useLinkedin = (document.getElementById('linkedinSourceBtn') as HTMLButtonElement).classList.contains('selected');
         const useCv = (document.getElementById('cvSourceBtn') as HTMLButtonElement).classList.contains('selected');
         const useManual = (document.getElementById('manualSourceBtn') as HTMLButtonElement).classList.contains('selected');
-        
+
         if (!nameInput.value.trim()) {
             this.showError('Please enter a judge name');
             return;
         }
-        
+
         if (!useLinkedin && !useCv && !useManual) {
             this.showError('Please select at least one source to create the judge');
             return;
         }
-        
+
         // Collect data from selected sources
         const sources: string[] = [];
         let hasValidData = false;
-        
+
         if (useLinkedin) {
             const linkedinInput = document.getElementById('linkedinPdfUpload') as HTMLInputElement;
             if (linkedinInput.files && linkedinInput.files[0]) {
@@ -1659,7 +1675,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 }
             }
         }
-        
+
         if (useCv) {
             const cvInput = document.getElementById('cvUpload') as HTMLInputElement;
             if (cvInput.files && cvInput.files[0]) {
@@ -1674,7 +1690,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 }
             }
         }
-        
+
         if (useManual) {
             const manualInput = document.getElementById('judgePrompt') as HTMLTextAreaElement;
             if (manualInput.value.trim()) {
@@ -1682,15 +1698,15 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 hasValidData = true;
             }
         }
-        
+
         if (!hasValidData) {
             this.showError('Please provide data for at least one selected source');
             return;
         }
-        
+
         // Show progress
         this.showJudgeCreationProgress('Analyzing provided sources...');
-        
+
         try {
             // Create AI judge profile using Claude
             const judgeProfile = await this.createAIJudgeProfile(
@@ -1698,22 +1714,22 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 focusInput.value.trim(),
                 sources
             );
-            
+
             // Add the judge to the list
             this.judges.push(judgeProfile);
-            
+
             // Clear the form
             this.clearCustomJudgeForm();
-            
+
             // Hide progress
             this.hideJudgeCreationProgress();
-            
+
             // Show success message
             this.showSuccess(`🤖 Created AI expert judge: ${judgeProfile.name}`);
-            
+
             // Re-render the judges list
             this.renderJudges();
-            
+
         } catch (error) {
             this.hideJudgeCreationProgress();
             console.error('Error creating AI judge:', error);
@@ -1738,7 +1754,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
 
     private async createAIJudgeProfile(name: string, focus: string, sources: string[]): Promise<Judge> {
         const combinedData = sources.join('\n\n---\n\n');
-        
+
         const prompt = `You are an expert at creating detailed professional profiles for AI judges in hackathon evaluation systems. 
 
 Based on the following source data, create a comprehensive judge profile:
@@ -1749,23 +1765,27 @@ ${focus ? `JUDGING FOCUS: ${focus}` : ''}
 SOURCE DATA:
 ${combinedData}
 
-Please create a detailed judge profile that includes:
-1. A professional background summary (2-3 sentences)
-2. Key areas of expertise and experience
-3. Specific judging criteria they would focus on
-4. Their evaluation style and perspective
+Create a COMPREHENSIVE and DETAILED professional description following this exact format structure:
 
-Format your response as a JSON object with this structure:
-{
-  "name": "${name}",
-  "description": "Detailed professional background and expertise summary",
-  "prompt": "Specific judging instructions and criteria this expert would use to evaluate hackathon projects"
-}
+START with: "[Description of expertise] expert with comprehensive expertise across [relevant domains]:"
 
-The description should be 2-3 sentences highlighting their most relevant qualifications.
-The prompt should be detailed instructions (4-6 sentences) explaining how this expert would evaluate projects, what they'd prioritize, and their evaluation criteria.
+Then include 6-10 bullet points, each with the format:
+• **[Main Expertise Area]**: [6-10 detailed sub-expertise items separated by commas, each describing specific skills, technologies, methodologies, or domain knowledge]
 
-Ensure the profile is professional, specific, and tailored to hackathon project evaluation.`;
+Examples of the level of detail needed:
+• **Technical Architecture & Systems**: Microservices architecture design and orchestration, Event-driven architecture and message queuing systems, Database design optimization and query performance tuning, Cloud infrastructure deployment and scaling strategies, API gateway implementation and service mesh configuration, Container orchestration with Kubernetes and Docker, CI/CD pipeline automation and deployment strategies, Security architecture and penetration testing methodologies
+
+• **Research & Development Methodologies**: Experimental design and hypothesis testing frameworks, Literature review and prior art analysis techniques, Patent landscape analysis and intellectual property assessment, Technology readiness level evaluation and risk assessment, Prototype development and proof-of-concept validation, User research methodologies and data collection techniques, Market analysis and competitive intelligence gathering, Innovation management and technology transfer processes
+
+IMPORTANT REQUIREMENTS:
+- Each bullet point must have 6-10 detailed technical/professional items
+- Use specific technical terms, methodologies, tools, and domain knowledge
+- Make it sound like a world-class expert with deep specialized knowledge
+- Focus on areas relevant to hackathon project evaluation
+- Match the comprehensive depth of default system judges
+- Do NOT include evaluation frameworks or scoring criteria - just expertise description
+
+Write ONLY the comprehensive description text. Do not include JSON, headers, or other formatting.`;
 
         try {
             const response = await fetch(`${this.API_BASE_URL}/api/claude`, {
@@ -1780,21 +1800,60 @@ Ensure the profile is professional, specific, and tailored to hackathon project 
             });
 
             const result = await response.json();
-            
+
             if (!result.success) {
                 throw new Error(result.error || 'Failed to create judge profile');
             }
 
-            // Parse the JSON response from Claude
-            const judgeData = JSON.parse(result.response);
-            
+            // Use the plain text response as the description and create a simple prompt
+            const description = result.response.trim();
+
+            // Create a comprehensive evaluation prompt based on the focus area and expertise
+            const evaluationPrompt = focus ?
+                `You are an expert hackathon judge specializing in ${focus} with the comprehensive background described above. 
+
+EVALUATION FOCUS: ${focus}
+
+Apply your specialized expertise to evaluate hackathon projects with particular attention to ${focus.toLowerCase()} aspects. Consider technical implementation quality, innovation potential, scalability, and practical impact within your domain of expertise.
+
+EVALUATION CRITERIA:
+1. Technical Excellence (30%): Implementation quality, architectural decisions, code standards
+2. Innovation & Creativity (25%): Novel approaches, creative solutions, breakthrough potential  
+3. Practical Impact (25%): Real-world applicability, user value, market potential
+4. Implementation Quality (20%): Completeness, robustness, production readiness
+
+Provide detailed analysis covering:
+- Specific technical strengths and innovations observed
+- Areas where expertise in ${focus} adds unique value assessment
+- Potential improvements from your specialized perspective
+- Overall assessment of project quality and potential
+
+Conclude with a numerical score (1-10) based on your expert evaluation criteria.` :
+                `You are an expert hackathon judge with the comprehensive background and expertise described above.
+
+Apply your specialized knowledge to thoroughly evaluate hackathon projects across multiple dimensions of quality and innovation.
+
+EVALUATION CRITERIA:
+1. Technical Excellence (30%): Implementation quality, architectural decisions, code standards
+2. Innovation & Creativity (25%): Novel approaches, creative solutions, breakthrough potential  
+3. Practical Impact (25%): Real-world applicability, user value, market potential
+4. Implementation Quality (20%): Completeness, robustness, production readiness
+
+Provide detailed analysis covering:
+- Technical strengths and innovative aspects from your expert perspective
+- Assessment of practical value and real-world applicability
+- Evaluation of implementation quality and architectural decisions
+- Potential improvements and recommendations for enhancement
+
+Conclude with a numerical score (1-10) based on your comprehensive expert evaluation.`;
+
             return {
                 id: `ai-${Date.now()}`,
-                name: judgeData.name || name,
-                description: judgeData.description,
-                prompt: judgeData.prompt
+                name: name,
+                description: description,
+                prompt: evaluationPrompt
             };
-            
+
         } catch (error) {
             console.error('Error creating AI judge profile:', error);
             throw new Error('Failed to generate AI judge profile');
@@ -1804,7 +1863,7 @@ Ensure the profile is professional, specific, and tailored to hackathon project 
     private showJudgeCreationProgress(status: string): void {
         const progressDiv = document.getElementById('judgeCreationProgress') as HTMLElement;
         const statusSpan = document.getElementById('judgeCreationStatus') as HTMLElement;
-        
+
         if (progressDiv) progressDiv.style.display = 'block';
         if (statusSpan) statusSpan.textContent = status;
     }
@@ -1820,11 +1879,11 @@ Ensure the profile is professional, specific, and tailored to hackathon project 
         const focusInput = document.getElementById('judgeFocus') as HTMLInputElement;
         if (nameInput) nameInput.value = '';
         if (focusInput) focusInput.value = '';
-        
+
         // Reset to default state: only manual selected
         const buttons = ['linkedinSourceBtn', 'cvSourceBtn', 'manualSourceBtn'];
         const sections = ['linkedinSection', 'cvSection', 'manualSection'];
-        
+
         buttons.forEach(id => {
             const button = document.getElementById(id) as HTMLButtonElement;
             if (button) {
@@ -1835,7 +1894,7 @@ Ensure the profile is professional, specific, and tailored to hackathon project 
                 }
             }
         });
-        
+
         sections.forEach(id => {
             const section = document.getElementById(id) as HTMLElement;
             if (section) {
@@ -1846,12 +1905,12 @@ Ensure the profile is professional, specific, and tailored to hackathon project 
                 }
             }
         });
-        
+
         // Clear individual inputs
         const linkedinInput = document.getElementById('linkedinPdfUpload') as HTMLInputElement;
         const cvInput = document.getElementById('cvUpload') as HTMLInputElement;
         const manualInput = document.getElementById('judgePrompt') as HTMLTextAreaElement;
-        
+
         if (linkedinInput) linkedinInput.value = '';
         if (cvInput) cvInput.value = '';
         if (manualInput) manualInput.value = '';
@@ -2417,16 +2476,49 @@ function triggerFolderUpload(): void {
     // Activate folder tab
     folderTab.classList.add('active');
 
-    // Show immediate feedback with spinner
+    // Phase 1: Initial feedback
     showUploadStatus('Opening folder picker...', false, true);
 
     // Add loading state to button
     folderTab.innerHTML = '⏳ Opening...';
     folderTab.disabled = true;
 
+    // Track timing for better user feedback
+    const startTime = Date.now();
+    let hasUserInteracted = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    // Phase 2: Setup file input detection
+    const folderInput = document.getElementById('folderUpload') as HTMLInputElement;
+
+    // Detect when user completes file selection
+    const detectUserInteraction = () => {
+        if (!hasUserInteracted) {
+            hasUserInteracted = true;
+            showUploadStatus('Folder selected! Processing files...', false, true);
+            clearTimeout(timeoutId);
+        }
+    };
+
+    // Listen for file selection completion
+    folderInput.addEventListener('change', detectUserInteraction, { once: true });
+
+    // Phase 3: Setup progressive feedback
+    timeoutId = setTimeout(() => {
+        if (!hasUserInteracted) {
+            showUploadStatus('Waiting for folder selection... If you see a permission dialog, please allow access.', false, true);
+
+            // Set up follow-up timeout for continued waiting
+            timeoutId = setTimeout(() => {
+                if (!hasUserInteracted) {
+                    showUploadStatus('Still waiting for folder selection (large folders may take time a few minutes to load)...', false, true);
+                }
+            }, 8000);
+        }
+    }, 2000);
+
     // Trigger folder selection with delay to show feedback
     setTimeout(() => {
-        const folderInput = document.getElementById('folderUpload') as HTMLInputElement;
         folderInput.click();
 
         // Reset button after a moment
@@ -2510,19 +2602,19 @@ function triggerGithubUpload(): void {
 function toggleJudgeSourceButton(source: 'linkedin' | 'cv' | 'manual'): void {
     const sectionId = source + 'Section';
     const buttonId = source + 'SourceBtn';
-    
+
     const section = document.getElementById(sectionId) as HTMLElement;
     const button = document.getElementById(buttonId) as HTMLButtonElement;
-    
+
     if (section && button) {
         // Toggle button selection state
         const isSelected = button.classList.contains('selected');
-        
+
         if (isSelected) {
             // Deselect: remove selected class and hide section
             button.classList.remove('selected');
             section.style.display = 'none';
-            
+
             // Clear the input when deselected
             if (source === 'linkedin') {
                 const linkedinInput = document.getElementById('linkedinPdfUpload') as HTMLInputElement;
@@ -2803,7 +2895,7 @@ function switchUploadMethod(method: 'folder' | 'zip' | 'github'): void {
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Initializing HackathonJudge app...');
-    
+
     // Initialize the app (this will also set up file input listeners)
     (window as any).hackathonJudge = new HackathonJudge();
 });
