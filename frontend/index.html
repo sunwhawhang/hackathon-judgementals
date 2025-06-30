@@ -659,6 +659,115 @@
             left: 100%;
         }
 
+        /* Judge collapsible options */
+        .judge-option {
+            border: 1px solid #3d3d3d;
+            border-radius: 8px;
+            background: #2a2a2a;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .judge-option:hover {
+            border-color: #4a4a4a;
+        }
+
+        .judge-option-header {
+            padding: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            user-select: none;
+            transition: all 0.3s ease;
+            background: #2a2a2a;
+        }
+
+        .judge-option-header:hover {
+            background: #333;
+        }
+
+        .judge-option-header.selected {
+            background: #2a2a2a;
+        }
+
+        .judge-option-header.selected .option-title {
+            color: #cc8b5c;
+            font-weight: 600;
+        }
+
+        .selection-indicator {
+            font-size: 16px;
+            min-width: 20px;
+            text-align: center;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #3d3d3d;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            background: #2a2a2a;
+        }
+
+        .selection-indicator::after {
+            content: '';
+            width: 10px;
+            height: 5px;
+            border-left: 2px solid #cc8b5c;
+            border-bottom: 2px solid #cc8b5c;
+            transform: rotate(-45deg);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-top: -4px;
+            margin-left: -5px;
+        }
+
+        .judge-option-header.selected .selection-indicator {
+            background: #cc8b5c;
+            border-color: #cc8b5c;
+        }
+
+        .judge-option-header.selected .selection-indicator::after {
+            opacity: 1;
+            border-color: #1a1a1a;
+        }
+
+        .option-title {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+            color: #f5f5f5;
+            transition: color 0.3s ease;
+        }
+
+        .expand-arrow {
+            font-size: 12px;
+            color: #a8a8a8;
+            transition: transform 0.3s ease;
+        }
+
+        .judge-option-header.selected .expand-arrow {
+            transform: rotate(90deg);
+        }
+
+        .judge-option-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            padding: 0 16px;
+        }
+
+        .judge-option-content.expanded {
+            max-height: 500px;
+            padding: 0 16px 16px;
+        }
+
         .judge-details summary {
             list-style: none;
             padding: 4px 0;
@@ -936,60 +1045,84 @@
                             <div style="font-size: 14px; color: #cc8b5c; margin-bottom: 12px; font-weight: 600;">
                                 📊 Select one or more sources to create your expert judge:
                             </div>
-                            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                                <button class="judge-source-btn selected" id="manualSourceBtn"
-                                    onclick="toggleJudgeSourceButton('manual')">
-                                    ✍️ Manual Description
-                                </button>
-                                <button class="judge-source-btn" id="cvSourceBtn"
-                                    onclick="toggleJudgeSourceButton('cv')">
-                                    📄 Upload CV/Resume
-                                </button>
-                                <button class="judge-source-btn" id="linkedinSourceBtn"
-                                    onclick="toggleJudgeSourceButton('linkedin')">
-                                    📄 LinkedIn PDF
-                                </button>
+
+                            <!-- Vertical Collapsible Options -->
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <!-- Manual Description Option -->
+                                <div class="judge-option" id="manualOption">
+                                    <div class="judge-option-header selected" id="manualHeader"
+                                        onclick="toggleJudgeOption('manual')">
+                                        <span class="selection-indicator" id="manualIndicator"></span>
+                                        <span class="option-title">✍️ Manual Description</span>
+                                        <span class="expand-arrow" id="manualArrow">▼</span>
+                                    </div>
+                                    <div class="judge-option-content expanded" id="manualContent">
+                                        <div id="manualSection" style="margin-top: 12px;">
+                                            <textarea id="judgePrompt"
+                                                placeholder="Describe the judge's background, expertise, and evaluation criteria..."
+                                                style="height: 120px;" class="upload-input"></textarea>
+                                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                                ✍️ Manual description will be combined with other sources to create
+                                                comprehensive judge persona
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CV Upload Option -->
+                                <div class="judge-option" id="cvOption">
+                                    <div class="judge-option-header" id="cvHeader" onclick="toggleJudgeOption('cv')">
+                                        <span class="selection-indicator" id="cvIndicator"></span>
+                                        <span class="option-title">📄 Upload CV/Resume</span>
+                                        <span class="expand-arrow" id="cvArrow">▶</span>
+                                    </div>
+                                    <div class="judge-option-content" id="cvContent">
+                                        <div id="cvSection" style="margin-top: 12px;">
+                                            <input type="file" id="cvUpload" accept=".pdf,.txt,.doc,.docx"
+                                                class="upload-input" />
+                                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                                📄 CV/Resume will be parsed to understand experience and create expert
+                                                judge profile
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- LinkedIn PDF Option -->
+                                <div class="judge-option" id="linkedinOption">
+                                    <div class="judge-option-header" id="linkedinHeader"
+                                        onclick="toggleJudgeOption('linkedin')">
+                                        <span class="selection-indicator" id="linkedinIndicator"></span>
+                                        <span class="option-title">📄 LinkedIn PDF</span>
+                                        <span class="expand-arrow" id="linkedinArrow">▶</span>
+                                    </div>
+                                    <div class="judge-option-content" id="linkedinContent">
+                                        <div id="linkedinSection" style="margin-top: 12px;">
+                                            <div
+                                                style="background: #2f2d2a; border: 1px solid #4a453e; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                                                <div style="color: #cc8b5c; font-weight: 600; margin-bottom: 8px;">📋
+                                                    How to Download
+                                                    Your LinkedIn Profile as PDF:</div>
+                                                <ol
+                                                    style="color: #d4ab7a; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.5;">
+                                                    <li>Go to your LinkedIn profile page</li>
+                                                    <li>Click "More" → "Save to PDF"</li>
+                                                    <li>Download the generated PDF file</li>
+                                                    <li>Upload it below to create your expert judge</li>
+                                                </ol>
+                                            </div>
+                                            <input type="file" id="linkedinPdfUpload" accept=".pdf"
+                                                class="upload-input" />
+                                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
+                                                📄 LinkedIn PDF will be analyzed to extract professional background and
+                                                expertise
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Manual Description Section (shown by default) -->
-                        <div id="manualSection" style="display: block; margin-bottom: 16px;">
-                            <textarea id="judgePrompt"
-                                placeholder="Describe the judge's background, expertise, and evaluation criteria..."
-                                style="height: 120px;" class="upload-input"></textarea>
-                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
-                                ✍️ Manual description will be combined with other sources to create comprehensive judge
-                                persona
-                            </div>
-                        </div>
-
-                        <!-- CV Upload Section -->
-                        <div id="cvSection" style="display: none; margin-bottom: 16px;">
-                            <input type="file" id="cvUpload" accept=".pdf,.txt,.doc,.docx" class="upload-input" />
-                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
-                                📄 CV/Resume will be parsed to understand experience and create expert judge profile
-                            </div>
-                        </div>
-
-                        <!-- LinkedIn PDF Upload Section -->
-                        <div id="linkedinSection" style="display: none; margin-bottom: 16px;">
-                            <div
-                                style="background: #2f2d2a; border: 1px solid #4a453e; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
-                                <div style="color: #cc8b5c; font-weight: 600; margin-bottom: 8px;">📋 How to Download
-                                    Your LinkedIn Profile as PDF:</div>
-                                <ol
-                                    style="color: #d4ab7a; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.5;">
-                                    <li>Go to your LinkedIn profile page</li>
-                                    <li>Click "More" → "Save to PDF"</li>
-                                    <li>Download the generated PDF file</li>
-                                    <li>Upload it below to create your expert judge</li>
-                                </ol>
-                            </div>
-                            <input type="file" id="linkedinPdfUpload" accept=".pdf" class="upload-input" />
-                            <div style="font-size: 12px; color: #a8a8a8; margin-top: 4px;">
-                                📄 LinkedIn PDF will be analyzed to extract professional background and expertise
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Progress indicator -->

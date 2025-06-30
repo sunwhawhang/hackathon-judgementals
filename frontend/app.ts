@@ -1325,7 +1325,6 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
         }
     }
 
-
     private showWarning(message: string): void {
         const warningDiv = document.createElement('div');
         warningDiv.style.cssText = `
@@ -1352,6 +1351,22 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
         document.body.appendChild(errorDiv);
 
         setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    private isJudgeSourceSelected(source: 'linkedin' | 'cv' | 'manual'): boolean {
+        // Check new UI structure first (collapsible options)
+        const header = document.getElementById(`${source}Header`) as HTMLElement;
+        if (header) {
+            return header.classList.contains('selected');
+        }
+
+        // Fallback to old UI structure (button-based)
+        const button = document.getElementById(`${source}SourceBtn`) as HTMLButtonElement;
+        if (button) {
+            return button.classList.contains('selected');
+        }
+
+        return false;
     }
 
     private shouldFilterFile(filePath: string): boolean {
@@ -1419,10 +1434,10 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
         const nameInput = document.getElementById('judgeName') as HTMLInputElement;
         const focusInput = document.getElementById('judgeFocus') as HTMLInputElement;
 
-        // Check which sources are selected
-        const useLinkedin = (document.getElementById('linkedinSourceBtn') as HTMLButtonElement).classList.contains('selected');
-        const useCv = (document.getElementById('cvSourceBtn') as HTMLButtonElement).classList.contains('selected');
-        const useManual = (document.getElementById('manualSourceBtn') as HTMLButtonElement).classList.contains('selected');
+        // Check which sources are selected (support both old and new UI)
+        const useLinkedin = this.isJudgeSourceSelected('linkedin');
+        const useCv = this.isJudgeSourceSelected('cv');
+        const useManual = this.isJudgeSourceSelected('manual');
 
         if (!nameInput.value.trim()) {
             this.showError('Please enter a judge name');
@@ -1657,31 +1672,61 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         if (nameInput) nameInput.value = '';
         if (focusInput) focusInput.value = '';
 
-        // Reset to default state: only manual selected
-        const buttons = ['linkedinSourceBtn', 'cvSourceBtn', 'manualSourceBtn'];
-        const sections = ['linkedinSection', 'cvSection', 'manualSection'];
+        // Handle new UI structure (collapsible options)
+        const manualHeader = document.getElementById('manualHeader') as HTMLElement;
+        const cvHeader = document.getElementById('cvHeader') as HTMLElement;
+        const linkedinHeader = document.getElementById('linkedinHeader') as HTMLElement;
 
-        buttons.forEach(id => {
-            const button = document.getElementById(id) as HTMLButtonElement;
-            if (button) {
-                if (id === 'manualSourceBtn') {
-                    button.classList.add('selected');
-                } else {
-                    button.classList.remove('selected');
-                }
-            }
-        });
+        if (manualHeader && cvHeader && linkedinHeader) {
+            // New UI: Reset to manual only selected and expanded
+            manualHeader.classList.add('selected');
+            cvHeader.classList.remove('selected');
+            linkedinHeader.classList.remove('selected');
 
-        sections.forEach(id => {
-            const section = document.getElementById(id) as HTMLElement;
-            if (section) {
-                if (id === 'manualSection') {
-                    section.style.display = 'block';
-                } else {
-                    section.style.display = 'none';
+            // Update content visibility
+            const manualContent = document.getElementById('manualContent') as HTMLElement;
+            const cvContent = document.getElementById('cvContent') as HTMLElement;
+            const linkedinContent = document.getElementById('linkedinContent') as HTMLElement;
+
+            if (manualContent) manualContent.classList.add('expanded');
+            if (cvContent) cvContent.classList.remove('expanded');
+            if (linkedinContent) linkedinContent.classList.remove('expanded');
+
+            // Update arrows (CSS handles checkbox indicators automatically)
+            const manualArrow = document.getElementById('manualArrow') as HTMLElement;
+            const cvArrow = document.getElementById('cvArrow') as HTMLElement;
+            const linkedinArrow = document.getElementById('linkedinArrow') as HTMLElement;
+
+            if (manualArrow) manualArrow.textContent = '▼';
+            if (cvArrow) cvArrow.textContent = '▶';
+            if (linkedinArrow) linkedinArrow.textContent = '▶';
+        } else {
+            // Fallback to old UI structure (button-based)
+            const buttons = ['linkedinSourceBtn', 'cvSourceBtn', 'manualSourceBtn'];
+            const sections = ['linkedinSection', 'cvSection', 'manualSection'];
+
+            buttons.forEach(id => {
+                const button = document.getElementById(id) as HTMLButtonElement;
+                if (button) {
+                    if (id === 'manualSourceBtn') {
+                        button.classList.add('selected');
+                    } else {
+                        button.classList.remove('selected');
+                    }
                 }
-            }
-        });
+            });
+
+            sections.forEach(id => {
+                const section = document.getElementById(id) as HTMLElement;
+                if (section) {
+                    if (id === 'manualSection') {
+                        section.style.display = 'block';
+                    } else {
+                        section.style.display = 'none';
+                    }
+                }
+            });
+        }
 
         // Clear individual inputs
         const linkedinInput = document.getElementById('linkedinPdfUpload') as HTMLInputElement;
@@ -2377,20 +2422,24 @@ function triggerGithubUpload(): void {
 }
 
 function toggleJudgeSourceButton(source: 'linkedin' | 'cv' | 'manual'): void {
-    const sectionId = source + 'Section';
-    const buttonId = source + 'SourceBtn';
+    // Legacy function - keeping for backward compatibility
+    // New implementation uses toggleJudgeOption
+    toggleJudgeOption(source);
+}
 
-    const section = document.getElementById(sectionId) as HTMLElement;
-    const button = document.getElementById(buttonId) as HTMLButtonElement;
+function toggleJudgeOption(source: 'linkedin' | 'cv' | 'manual'): void {
+    const header = document.getElementById(`${source}Header`) as HTMLElement;
+    const content = document.getElementById(`${source}Content`) as HTMLElement;
+    const arrow = document.getElementById(`${source}Arrow`) as HTMLElement;
 
-    if (section && button) {
-        // Toggle button selection state
-        const isSelected = button.classList.contains('selected');
+    if (header && content && arrow) {
+        const isCurrentlySelected = header.classList.contains('selected');
 
-        if (isSelected) {
-            // Deselect: remove selected class and hide section
-            button.classList.remove('selected');
-            section.style.display = 'none';
+        if (isCurrentlySelected) {
+            // Deselect and collapse
+            header.classList.remove('selected');
+            content.classList.remove('expanded');
+            arrow.textContent = '▶';
 
             // Clear the input when deselected
             if (source === 'linkedin') {
@@ -2404,9 +2453,10 @@ function toggleJudgeSourceButton(source: 'linkedin' | 'cv' | 'manual'): void {
                 if (manualInput) manualInput.value = '';
             }
         } else {
-            // Select: add selected class and show section
-            button.classList.add('selected');
-            section.style.display = 'block';
+            // Select and expand
+            header.classList.add('selected');
+            content.classList.add('expanded');
+            arrow.textContent = '▼';
         }
     }
 }
@@ -2637,38 +2687,6 @@ function switchTab(projectName: string, tabIndex: number): void {
     }
 }
 
-// Global function for switching upload methods
-function switchUploadMethod(method: 'folder' | 'zip' | 'github'): void {
-    const folderMethod = document.getElementById('folderUploadMethod');
-    const zipMethod = document.getElementById('zipUploadMethod');
-    const githubMethod = document.getElementById('githubUploadMethod');
-    const folderTab = document.getElementById('folderTab');
-    const zipTab = document.getElementById('zipTab');
-    const githubTab = document.getElementById('githubTab');
-
-    // Hide all methods
-    folderMethod!.style.display = 'none';
-    zipMethod!.style.display = 'none';
-    githubMethod!.style.display = 'none';
-
-    // Remove active from all tabs
-    folderTab!.classList.remove('active');
-    zipTab!.classList.remove('active');
-    githubTab!.classList.remove('active');
-
-    // Show selected method and activate tab
-    if (method === 'folder') {
-        folderMethod!.style.display = 'block';
-        folderTab!.classList.add('active');
-    } else if (method === 'zip') {
-        zipMethod!.style.display = 'block';
-        zipTab!.classList.add('active');
-    } else if (method === 'github') {
-        githubMethod!.style.display = 'block';
-        githubTab!.classList.add('active');
-    }
-}
-
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Initializing HackathonJudge app...');
@@ -2691,6 +2709,7 @@ document.addEventListener('DOMContentLoaded', () => {
 (window as any).toggleResult = toggleResult;
 (window as any).switchTab = switchTab;
 (window as any).toggleJudgeSourceButton = toggleJudgeSourceButton;
+(window as any).toggleJudgeOption = toggleJudgeOption;
 (window as any).resetUploadTabs = resetUploadTabs;
 (window as any).clearUpload = clearUpload;
 (window as any).showUploadStatus = showUploadStatus;
