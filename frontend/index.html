@@ -570,6 +570,27 @@
             }
         }
 
+        /* Collapsible section styling */
+        .collapsible-header:hover {
+            background: rgba(204, 139, 92, 0.1) !important;
+        }
+
+        .collapsible-content {
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.expanded {
+            max-height: 500px !important;
+        }
+
+        .expand-arrow {
+            transition: transform 0.2s ease;
+        }
+
+        .expand-arrow.rotated {
+            transform: rotate(90deg);
+        }
+
         /* Upload method tabs */
         .tab-btn {
             padding: 8px 16px;
@@ -948,6 +969,19 @@
             font-weight: 600;
             color: #cc8b5c;
         }
+
+        /* Collapsible section styles */
+        .collapsible-header:hover {
+            background: rgba(61, 61, 61, 0.3) !important;
+        }
+
+        .collapsible-content.expanded {
+            max-height: 300px !important;
+        }
+
+        .expand-arrow.rotated {
+            transform: rotate(90deg) !important;
+        }
     </style>
 </head>
 
@@ -973,23 +1007,24 @@
                         <li>Your saved project will be <strong>valid for 7 days</strong></li>
                     </ul>
                 </div>
-                
+
                 <div class="upload-section" style="background: #2a2a2a; border-color: #3d3d3d;">
                     <div style="margin-bottom: 20px;">
-                        <input type="text" id="savedProjectName" class="upload-input" 
-                               placeholder="Enter a unique project name..." 
-                               style="width: 300px; margin-right: 12px;" />
+                        <input type="text" id="savedProjectName" class="upload-input"
+                            placeholder="Enter a unique project name..." style="width: 300px; margin-right: 12px;" />
                         <button class="btn" onclick="generateProjectUrl()" id="generateUrlBtn">
                             🔗 Generate Project URL
                         </button>
                     </div>
-                    
-                    <div id="projectUrlSection" style="display: none; margin-top: 20px; padding: 20px; background: #1f2f1f; border: 1px solid #3d5d3d; border-radius: 8px;">
+
+                    <div id="projectUrlSection"
+                        style="display: none; margin-top: 20px; padding: 20px; background: #1f2f1f; border: 1px solid #3d5d3d; border-radius: 8px;">
                         <h4 style="color: #4ade80; margin-bottom: 12px;">✅ Project URL Generated!</h4>
-                        <p style="color: #86efac; margin-bottom: 12px;">Your project is now being auto-saved. This URL is valid for 7 days:</p>
+                        <p style="color: #86efac; margin-bottom: 12px;">Your project is now being auto-saved. This URL
+                            is valid for 7 days:</p>
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                            <input type="text" id="generatedUrl" readonly 
-                                   style="flex: 1; padding: 8px; background: #374151; border: 1px solid #4b5563; border-radius: 4px; color: #f3f4f6;" />
+                            <input type="text" id="generatedUrl" readonly
+                                style="flex: 1; padding: 8px; background: #374151; border: 1px solid #4b5563; border-radius: 4px; color: #f3f4f6;" />
                             <button class="btn" onclick="copyProjectUrl()" id="copyUrlBtn" style="padding: 8px 16px;">
                                 📋 Copy
                             </button>
@@ -1002,10 +1037,52 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Upload Section -->
             <div class="section">
                 <h2>📁 Upload Projects</h2>
+
+                <!-- Share Upload Access Section (collapsible, collapsed by default) -->
+                <div id="shareUploadSection" style="display: none; margin-bottom: 24px;">
+                    <div class="collapsible-section"
+                        style="background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 12px;">
+                        <div class="collapsible-header" onclick="toggleShareUploadSection()"
+                            style="padding: 16px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-radius: 12px; transition: background 0.2s ease;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="color: #cc8b5c; font-size: 18px; font-weight: 600;">🔗 Share Upload
+                                    Access</span>
+                            </div>
+                            <span class="expand-arrow" id="shareUploadArrow"
+                                style="color: #a8a8a8; transition: transform 0.2s ease;">▶</span>
+                        </div>
+                        <div class="collapsible-content" id="shareUploadContent"
+                            style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease;">
+                            <div style="padding: 0 16px 16px;">
+                                <p style="color: #c4c4c4; margin-bottom: 16px; line-height: 1.5;">
+                                    Allow others to upload projects to your session by sharing this upload-only URL.
+                                    They will only see the upload interface and can add projects to your collection.
+                                </p>
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                                    <input type="text" id="shareUploadUrl" readonly
+                                        style="flex: 1; padding: 12px; background: #374151; border: 1px solid #4b5563; border-radius: 6px; color: #f3f4f6;"
+                                        placeholder="Generate your project URL first to enable sharing" />
+                                    <button class="btn" onclick="generateShareUploadUrl()" id="generateShareBtn">
+                                        🔗 Generate Upload URL
+                                    </button>
+                                    <button class="btn" onclick="copyShareUploadUrl()" id="copyShareBtn"
+                                        style="display: none; padding: 12px 20px;">
+                                        📋 Copy
+                                    </button>
+                                </div>
+                                <div style="font-size: 14px; color: #a8a8a8;">
+                                    💡 This URL allows others to upload projects without seeing your existing projects,
+                                    judges, or results.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="warning-box">
                     <h4>⚠️ Project Size Guidelines</h4>
                     <ul>

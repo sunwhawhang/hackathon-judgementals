@@ -72,6 +72,9 @@ interface SavedSession {
     createdAt: number;
     updatedAt: number;
     expiresAt: number;
+    // Share upload URL state
+    shareUploadUrlGenerated?: boolean;
+    shareUploadSectionExpanded?: boolean;
 }
 
 class HackathonJudge {
@@ -80,12 +83,16 @@ class HackathonJudge {
     private evaluations: ProjectEvaluation[] = [];
     private readonly CLAUDE_API_SEED = 12345; // Fixed seed for consistency
     private readonly API_BASE_URL: string;
-    
+
     // Session management
     private currentSessionId: string | null = null;
     private autoSaveEnabled = false;
     private autoSaveInterval: number | null = null;
     private sessionExpiryTime: number | null = null;
+    private sessionDataLoaded = false;
+    private lastSavedState: string | null = null; // Track last saved state to detect changes
+    private hasLocalChanges = false; // Track if there are unsaved local changes
+    private currentSessionData: SavedSession | null = null;
 
     constructor() {
         // Determine API base URL based on environment
@@ -95,7 +102,7 @@ class HackathonJudge {
         this.initializeDefaultJudges();
         this.renderJudges();
         this.initializeFileInputListeners();
-        
+
         // Check for existing session after Firebase is initialized
         this.waitForFirebaseAndLoadSession();
     }
@@ -2016,6 +2023,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
 
                     projectEvaluation.judgeResults = await Promise.all(judgePromises);
                     this.evaluations.push(projectEvaluation);
+                    this.markStateChanged();
                     this.triggerAutoSave(true); // Immediate save for evaluations
 
                 } catch (projectError) {
@@ -2034,6 +2042,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                         }))
                     };
                     this.evaluations.push(fallbackEvaluation);
+                    this.markStateChanged();
                     this.triggerAutoSave(true); // Immediate save for evaluations
                 }
             }
@@ -2301,25 +2310,25 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         // Wait for Firebase to be initialized
         let attempts = 0;
         const maxAttempts = 50; // 5 seconds max wait
-        
+
         while (attempts < maxAttempts) {
             if ((window as any).firebaseFirestore && (window as any).firebaseGetDoc) {
                 console.log('🔥 Firebase initialized, checking for existing session...');
                 this.checkForExistingSession();
                 return;
             }
-            
+
             await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
             attempts++;
         }
-        
+
         console.warn('⚠️ Firebase failed to initialize within 5 seconds, session loading skipped');
     }
 
     private checkForExistingSession(): void {
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
-        
+
         if (sessionId) {
             console.log(`🔄 Loading existing session: ${sessionId}`);
             this.loadSession(sessionId);
@@ -2332,7 +2341,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         try {
             console.log(`📡 Attempting to fetch session: ${sessionId}`);
             const sessionDoc = await this.getFirestoreDoc('sessions', sessionId);
-            
+
             if (sessionDoc) {
                 const sessionData = sessionDoc as SavedSession;
                 console.log(`📊 Session data retrieved:`, {
@@ -2343,7 +2352,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                     createdAt: new Date(sessionData.createdAt),
                     expiresAt: new Date(sessionData.expiresAt)
                 });
-                
+
                 // Check if session has expired
                 if (Date.now() > sessionData.expiresAt) {
                     console.warn('⏰ Session has expired');
@@ -2354,28 +2363,34 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 // Load session data
                 this.currentSessionId = sessionId;
                 this.sessionExpiryTime = sessionData.expiresAt;
+                this.currentSessionData = sessionData; // Store the full session data
                 this.projects = sessionData.projects || [];
                 this.judges = sessionData.judges || [];
                 this.evaluations = sessionData.evaluations || [];
-                
+                this.sessionDataLoaded = true; // Mark that we've loaded real session data
+
                 console.log(`🔄 Restored state:`, {
                     projects: this.projects.length,
                     judges: this.judges.length,
                     evaluations: this.evaluations.length
                 });
-                
+
                 // Update UI
                 console.log(`🎨 Rendering UI components...`);
                 this.renderProjects();
                 this.renderJudges();
                 this.renderResults();
-                
+
+                // Initialize state tracking
+                this.lastSavedState = this.getCurrentStateHash();
+                this.hasLocalChanges = false;
+
                 // Enable auto-save
                 this.enableAutoSave();
-                
+
                 // Show session info
                 this.showSessionInfo(sessionData.name);
-                
+
                 console.log('✅ Session loaded and UI updated successfully');
             } else {
                 console.warn('❌ Session document not found in Firestore');
@@ -2390,38 +2405,108 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
     private async saveSession(): Promise<void> {
         if (!this.currentSessionId) return;
 
-        try {
-            const sessionData: SavedSession = {
-                id: this.currentSessionId,
-                name: this.getSessionName(),
-                projects: this.projects,
-                judges: this.judges,
-                evaluations: this.evaluations,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days from now
-            };
+        // Only save if we have local changes to avoid overwriting external uploads
+        if (!this.hasLocalChanges) {
+            console.log('🚫 Skipping auto-save - no local changes detected');
+            return;
+        }
 
-            await this.setFirestoreDoc('sessions', this.currentSessionId, sessionData);
-            console.log('💾 Session auto-saved');
+        // Don't auto-save empty session data that could overwrite uploaded projects
+        if (!this.sessionDataLoaded && this.projects.length === 0 && this.judges.length === 0 && this.evaluations.length === 0) {
+            console.log('🚫 Skipping auto-save of empty session to prevent overwriting uploaded data');
+            return;
+        }
+
+        try {
+            // Before saving, reload session to merge with any external changes (like uploads)
+            const currentSessionDoc = await this.getFirestoreDoc('sessions', this.currentSessionId);
+            if (currentSessionDoc) {
+                const currentData = currentSessionDoc as SavedSession;
+
+                // Merge external projects with our local projects (never delete, only add)
+                const externalProjects = currentData.projects || [];
+                const localProjects = this.projects || [];
+
+                // Create a map of project names for deduplication
+                const projectMap = new Map<string, any>();
+
+                // Add external projects first (these include uploads)
+                externalProjects.forEach(project => {
+                    projectMap.set(project.name, project);
+                });
+
+                // Add local projects (overwrite if same name, which means local edits)
+                localProjects.forEach(project => {
+                    projectMap.set(project.name, project);
+                });
+
+                // Convert back to array
+                const mergedProjects = Array.from(projectMap.values());
+
+                console.log(`💾 Merging session data - External: ${externalProjects.length}, Local: ${localProjects.length}, Merged: ${mergedProjects.length}`);
+
+                const sessionData: SavedSession = {
+                    id: this.currentSessionId,
+                    name: this.getSessionName(),
+                    projects: mergedProjects, // Use merged projects
+                    judges: this.judges, // Use local judges (user can only edit these locally)
+                    evaluations: this.evaluations, // Use local evaluations (user can only edit these locally)
+                    createdAt: currentData.createdAt || Date.now(),
+                    updatedAt: Date.now(),
+                    expiresAt: currentData.expiresAt || (Date.now() + (7 * 24 * 60 * 60 * 1000)),
+                    // Preserve share upload state from current session data or use defaults
+                    shareUploadUrlGenerated: this.currentSessionData?.shareUploadUrlGenerated || false,
+                    shareUploadSectionExpanded: this.currentSessionData?.shareUploadSectionExpanded || false
+                };
+
+                await this.setFirestoreDoc('sessions', this.currentSessionId, sessionData);
+
+                // Update our local state with the merged data
+                this.projects = mergedProjects;
+                this.currentSessionData = sessionData; // Update the cached session data
+                this.renderProjects(); // Re-render to show any new uploaded projects
+
+                // Update the saved state hash
+                this.lastSavedState = this.getCurrentStateHash();
+                this.hasLocalChanges = false;
+
+                console.log('💾 Session auto-saved with merged data');
+            } else {
+                console.warn('⚠️ Session not found during save, skipping merge');
+            }
         } catch (error) {
             console.error('❌ Error saving session:', error);
         }
     }
 
     private generateSessionId(): string {
-        return Math.random().toString(36).substring(2, 15) + 
-               Math.random().toString(36).substring(2, 15);
+        return Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15);
+    }
+
+    private getCurrentStateHash(): string {
+        // Create a hash of current state to detect changes
+        const stateData = {
+            projects: this.projects.map(p => ({ name: p.name, fileCount: p.files.length })),
+            judges: this.judges.map(j => ({ id: j.id, name: j.name })),
+            evaluations: this.evaluations.map(e => ({ projectName: e.projectName, judgeCount: e.judgeResults.length }))
+        };
+        return JSON.stringify(stateData);
+    }
+
+    private markStateChanged(): void {
+        this.hasLocalChanges = true;
+        console.log('📝 Local changes detected, auto-save will run on next interval');
     }
 
     private enableAutoSave(): void {
         this.autoSaveEnabled = true;
-        
+
         // Save every 30 seconds
         if (this.autoSaveInterval) {
             clearInterval(this.autoSaveInterval);
         }
-        
+
         this.autoSaveInterval = window.setInterval(() => {
             this.saveSession();
         }, 30000);
@@ -2451,16 +2536,65 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         const nameInput = document.getElementById('savedProjectName') as HTMLInputElement;
         const urlSection = document.getElementById('projectUrlSection');
         const generatedUrl = document.getElementById('generatedUrl') as HTMLInputElement;
-        
+
         if (nameInput) nameInput.value = sessionName;
         if (urlSection) urlSection.style.display = 'block';
         if (generatedUrl) generatedUrl.value = window.location.href;
-        
+
         // Hide the input and button, show project name instead
         this.hideProjectManagementInputs(sessionName);
-        
+
         // Update expiry info for loaded sessions
         this.updateExpiryInfoFromSession();
+
+        // Show share upload section
+        this.showShareUploadSection();
+
+        // Restore share upload URL and collapsible state from localStorage
+        this.restoreShareUploadState();
+    }
+
+    private restoreShareUploadState(): void {
+        // Restore URL generation state from session data
+        if (this.currentSessionId && this.currentSessionData) {
+            // Generate the URL based on current session - it's always deterministic
+            const uploadUrl = new URL(window.location.origin + window.location.pathname);
+            uploadUrl.pathname = uploadUrl.pathname.replace('index.html', 'upload.html').replace(/\/$/, '/upload.html');
+            if (uploadUrl.pathname === '/') uploadUrl.pathname = '/upload.html';
+            uploadUrl.searchParams.set('session', this.currentSessionId);
+
+            // Check if URL was previously generated from session data
+            if (this.currentSessionData.shareUploadUrlGenerated) {
+                const shareUploadUrl = document.getElementById('shareUploadUrl') as HTMLInputElement;
+                const generateShareBtn = document.getElementById('generateShareBtn') as HTMLButtonElement;
+                const copyShareBtn = document.getElementById('copyShareBtn') as HTMLButtonElement;
+
+                if (shareUploadUrl) shareUploadUrl.value = uploadUrl.toString();
+                if (generateShareBtn) {
+                    generateShareBtn.innerHTML = '✅ Generated!';
+                    generateShareBtn.disabled = false;
+                }
+                if (copyShareBtn) copyShareBtn.style.display = 'inline-block';
+
+                console.log('✅ Share upload URL restored from session data:', uploadUrl.toString());
+            }
+
+            // Restore collapsible section state from session data
+            if (this.currentSessionData.shareUploadSectionExpanded === true) {
+                // Section should be expanded
+                const content = document.getElementById('shareUploadContent');
+                const arrow = document.getElementById('shareUploadArrow');
+
+                if (content && arrow) {
+                    content.classList.add('expanded');
+                    arrow.classList.add('rotated');
+                    console.log('✅ Share upload section state restored: expanded');
+                }
+            } else {
+                // Section should be collapsed (default state)
+                console.log('✅ Share upload section state restored: collapsed');
+            }
+        }
     }
 
     private hideProjectManagementInputs(sessionName: string): void {
@@ -2469,13 +2603,13 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         if (warningSection) {
             warningSection.style.display = 'none';
         }
-        
+
         // Hide the input and button section
         const inputSection = document.querySelector('#savedProjectName')?.parentElement as HTMLElement;
         if (inputSection) {
             inputSection.style.display = 'none';
         }
-        
+
         // Create or update project name display
         let projectNameDisplay = document.getElementById('projectNameDisplay');
         if (!projectNameDisplay) {
@@ -2489,14 +2623,14 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 border-radius: 8px;
                 text-align: center;
             `;
-            
+
             // Insert before the project URL section
             const urlSection = document.getElementById('projectUrlSection');
             if (urlSection && urlSection.parentNode) {
                 urlSection.parentNode.insertBefore(projectNameDisplay, urlSection);
             }
         }
-        
+
         projectNameDisplay.innerHTML = `
             <div style="color: #cc8b5c; font-size: 18px; font-weight: 600; margin-bottom: 5px;">
                 📁 Project Name
@@ -2513,7 +2647,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
             // Calculate expiry date (7 days from now)
             const expiryDate = new Date();
             expiryDate.setDate(expiryDate.getDate() + 7);
-            
+
             // Format the date nicely
             const options: Intl.DateTimeFormatOptions = {
                 weekday: 'long',
@@ -2523,7 +2657,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 hour: '2-digit',
                 minute: '2-digit'
             };
-            
+
             const formattedDate = expiryDate.toLocaleDateString('en-US', options);
             expiryInfoElement.innerHTML = `This URL is valid for 7 days (expires ${formattedDate})`;
         }
@@ -2533,7 +2667,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         const expiryInfoElement = document.getElementById('urlExpiryInfo');
         if (expiryInfoElement && this.sessionExpiryTime) {
             const expiryDate = new Date(this.sessionExpiryTime);
-            
+
             // Format the date nicely
             const options: Intl.DateTimeFormatOptions = {
                 weekday: 'long',
@@ -2543,9 +2677,16 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 hour: '2-digit',
                 minute: '2-digit'
             };
-            
+
             const formattedDate = expiryDate.toLocaleDateString('en-US', options);
             expiryInfoElement.innerHTML = `This URL is valid for 7 days (expires ${formattedDate})`;
+        }
+    }
+
+    private showShareUploadSection(): void {
+        const shareUploadSection = document.getElementById('shareUploadSection');
+        if (shareUploadSection) {
+            shareUploadSection.style.display = 'block';
         }
     }
 
@@ -2556,7 +2697,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
             const db = (window as any).firebaseFirestore;
             const docRef = (window as any).firebaseDoc(db, collection, docId);
             const docSnap = await (window as any).firebaseGetDoc(docRef);
-            
+
             if (docSnap.exists()) {
                 console.log(`✅ Document found: ${collection}/${docId}`);
                 return docSnap.data();
@@ -2584,18 +2725,21 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
     // Override existing methods to trigger auto-save
     public addProject(project: Project): void {
         this.projects.push(project);
+        this.markStateChanged();
         this.renderProjects();
         this.triggerAutoSave();
     }
 
     public removeProject(index: number): void {
         this.projects.splice(index, 1);
+        this.markStateChanged();
         this.renderProjects();
         this.triggerAutoSave();
     }
 
     public addJudge(judge: Judge): void {
         this.judges.push(judge);
+        this.markStateChanged();
         this.renderJudges();
         this.triggerAutoSave();
     }
@@ -3027,70 +3171,74 @@ async function generateProjectUrl(): Promise<void> {
     const generateBtn = document.getElementById('generateUrlBtn') as HTMLButtonElement;
     const urlSection = document.getElementById('projectUrlSection');
     const generatedUrl = document.getElementById('generatedUrl') as HTMLInputElement;
-    
+
     const projectName = nameInput?.value?.trim();
     if (!projectName) {
         alert('Please enter a project name first');
         return;
     }
-    
+
     try {
         generateBtn.disabled = true;
         generateBtn.innerHTML = '⏳ Generating...';
-        
+
         // Generate session ID and create URL
-        const sessionId = Math.random().toString(36).substring(2, 15) + 
-                         Math.random().toString(36).substring(2, 15);
+        const sessionId = Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15);
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set('session', sessionId);
-        
+
         // Set up the session in the HackathonJudge instance
         (hackathonJudge as any).currentSessionId = sessionId;
         (hackathonJudge as any).sessionExpiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days from now
-        
+        (hackathonJudge as any).sessionDataLoaded = true; // Mark that we have valid session data
+
         // Show intermediate status
         generateBtn.innerHTML = '💾 Saving data...';
-        
+
         // Save initial session FIRST before showing URL
         await (hackathonJudge as any).saveSession();
-        
+
         // Verify the save worked by reading it back
         generateBtn.innerHTML = '🔍 Verifying save...';
         const verification = await (hackathonJudge as any).getFirestoreDoc('sessions', sessionId);
-        
+
         if (!verification) {
             throw new Error('Failed to verify session was saved properly');
         }
-        
+
         console.log('✅ Session saved and verified in Firestore');
-        
+
         // Now enable auto-save for future changes
         (hackathonJudge as any).enableAutoSave();
-        
+
         // Update URL in browser
         window.history.pushState({}, '', newUrl.toString());
-        
+
         // Show success UI
         if (urlSection) urlSection.style.display = 'block';
         if (generatedUrl) generatedUrl.value = newUrl.toString();
-        
+
         // Hide inputs and show project name
         (hackathonJudge as any).hideProjectManagementInputs(projectName);
-        
+
         // Update expiry info with actual date
         (hackathonJudge as any).updateExpiryInfo();
-        
+
+        // Show share upload section
+        (hackathonJudge as any).showShareUploadSection();
+
         generateBtn.innerHTML = '✅ Generated & Saved!';
         generateBtn.disabled = false;
-        
+
         console.log('✅ Project URL generated and data saved successfully');
-        
+
     } catch (error) {
         console.error('❌ Error generating project URL:', error);
         alert('Error generating project URL. Please try again.');
         generateBtn.innerHTML = '🔗 Generate Project URL';
         generateBtn.disabled = false;
-        
+
         // Clear any partial session state
         (hackathonJudge as any).currentSessionId = null;
     }
@@ -3099,34 +3247,34 @@ async function generateProjectUrl(): Promise<void> {
 function copyProjectUrl(): void {
     const generatedUrl = document.getElementById('generatedUrl') as HTMLInputElement;
     const copyBtn = document.getElementById('copyUrlBtn') as HTMLButtonElement;
-    
+
     if (!generatedUrl?.value) {
         alert('No URL to copy');
         return;
     }
-    
+
     try {
         navigator.clipboard.writeText(generatedUrl.value);
-        
+
         // Visual feedback
         const originalText = copyBtn.innerHTML;
         copyBtn.innerHTML = '✅ Copied!';
         copyBtn.style.background = '#16a34a';
-        
+
         setTimeout(() => {
             copyBtn.innerHTML = originalText;
             copyBtn.style.background = '';
         }, 2000);
-        
+
         console.log('📋 Project URL copied to clipboard');
-        
+
     } catch (error) {
         console.error('❌ Error copying URL:', error);
-        
+
         // Fallback: select the text
         generatedUrl.select();
         generatedUrl.setSelectionRange(0, 99999);
-        
+
         try {
             document.execCommand('copy');
             copyBtn.innerHTML = '✅ Copied!';
@@ -3136,6 +3284,126 @@ function copyProjectUrl(): void {
         } catch (fallbackError) {
             alert('Please manually copy the URL from the text field');
         }
+    }
+}
+
+// Global functions for shareable upload URLs
+function generateShareUploadUrl() {
+    const shareUploadUrl = document.getElementById('shareUploadUrl') as HTMLInputElement;
+    const generateShareBtn = document.getElementById('generateShareBtn') as HTMLButtonElement;
+    const copyShareBtn = document.getElementById('copyShareBtn') as HTMLButtonElement;
+
+    if (!hackathonJudge || !(hackathonJudge as any).currentSessionId) {
+        alert('Please generate a project URL first');
+        return;
+    }
+
+    try {
+        generateShareBtn.disabled = true;
+        generateShareBtn.innerHTML = '⏳ Generating...';
+
+        // Create upload URL with session parameter
+        const uploadUrl = new URL(window.location.origin + window.location.pathname);
+        uploadUrl.pathname = uploadUrl.pathname.replace('index.html', 'upload.html').replace(/\/$/, '/upload.html');
+        if (uploadUrl.pathname === '/') uploadUrl.pathname = '/upload.html';
+        uploadUrl.searchParams.set('session', (hackathonJudge as any).currentSessionId);
+
+        // Update the input and show copy button
+        if (shareUploadUrl) shareUploadUrl.value = uploadUrl.toString();
+        if (copyShareBtn) copyShareBtn.style.display = 'inline-block';
+
+        generateShareBtn.innerHTML = '✅ Generated!';
+        generateShareBtn.disabled = false;
+
+        // Update session data to mark URL as generated
+        if ((hackathonJudge as any).currentSessionData) {
+            (hackathonJudge as any).currentSessionData.shareUploadUrlGenerated = true;
+            // Save the session to persist the state
+            (hackathonJudge as any).saveSession();
+        }
+
+        console.log('✅ Share upload URL generated and saved to session data:', uploadUrl.toString());
+
+    } catch (error) {
+        console.error('❌ Error generating share upload URL:', error);
+        generateShareBtn.innerHTML = '🔗 Generate Upload URL';
+        generateShareBtn.disabled = false;
+    }
+}
+
+function copyShareUploadUrl() {
+    const shareUploadUrl = document.getElementById('shareUploadUrl') as HTMLInputElement;
+    const copyShareBtn = document.getElementById('copyShareBtn') as HTMLButtonElement;
+
+    if (!shareUploadUrl?.value) {
+        alert('No URL to copy');
+        return;
+    }
+
+    try {
+        navigator.clipboard.writeText(shareUploadUrl.value);
+
+        // Visual feedback
+        const originalText = copyShareBtn.innerHTML;
+        copyShareBtn.innerHTML = '✅ Copied!';
+        copyShareBtn.style.background = '#16a34a';
+
+        setTimeout(() => {
+            copyShareBtn.innerHTML = originalText;
+            copyShareBtn.style.background = '';
+        }, 2000);
+
+        console.log('📋 Share upload URL copied to clipboard');
+
+    } catch (error) {
+        console.error('❌ Error copying URL:', error);
+
+        // Fallback: select the text
+        shareUploadUrl.select();
+        shareUploadUrl.setSelectionRange(0, 99999);
+
+        try {
+            document.execCommand('copy');
+            copyShareBtn.innerHTML = '✅ Copied!';
+            setTimeout(() => {
+                copyShareBtn.innerHTML = '📋 Copy';
+            }, 2000);
+        } catch (fallbackError) {
+            alert('Please manually copy the URL from the text field');
+        }
+    }
+}
+
+function toggleShareUploadSection() {
+    const content = document.getElementById('shareUploadContent');
+    const arrow = document.getElementById('shareUploadArrow');
+
+    if (content && arrow) {
+        const isExpanded = content.classList.contains('expanded');
+
+        if (isExpanded) {
+            content.classList.remove('expanded');
+            arrow.classList.remove('rotated');
+            // Update session data to mark section as collapsed
+            if (hackathonJudge && (hackathonJudge as any).currentSessionData) {
+                (hackathonJudge as any).currentSessionData.shareUploadSectionExpanded = false;
+                (hackathonJudge as any).saveSession();
+            }
+        } else {
+            content.classList.add('expanded');
+            arrow.classList.add('rotated');
+            // Update session data to mark section as expanded
+            if (hackathonJudge && (hackathonJudge as any).currentSessionData) {
+                (hackathonJudge as any).currentSessionData.shareUploadSectionExpanded = true;
+                (hackathonJudge as any).saveSession();
+            }
+        }
+    }
+}
+
+function restoreShareUploadUrl() {
+    if (hackathonJudge) {
+        (hackathonJudge as any).restoreShareUploadState();
     }
 }
 
@@ -3168,3 +3436,7 @@ document.addEventListener('DOMContentLoaded', () => {
 (window as any).showUploadStatus = showUploadStatus;
 (window as any).generateProjectUrl = generateProjectUrl;
 (window as any).copyProjectUrl = copyProjectUrl;
+(window as any).generateShareUploadUrl = generateShareUploadUrl;
+(window as any).copyShareUploadUrl = copyShareUploadUrl;
+(window as any).toggleShareUploadSection = toggleShareUploadSection;
+(window as any).restoreShareUploadUrl = restoreShareUploadUrl;

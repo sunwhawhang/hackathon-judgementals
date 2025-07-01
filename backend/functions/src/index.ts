@@ -1048,6 +1048,23 @@ export const api = onRequest(
 
                         try {
                             const result = await cloneGitHubRepository(githubUrl, projectName);
+                            
+                            // If targetSessionId is provided, add the project to that session
+                            const targetSessionId = body.targetSessionId;
+                            if (targetSessionId && result.success) {
+                                try {
+                                    await addProjectToSession(targetSessionId, {
+                                        name: result.projectName,
+                                        files: result.files,
+                                        droppedSummary: result.droppedSummary
+                                    });
+                                    console.log(`✅ GitHub project added to session: ${targetSessionId}`);
+                                } catch (sessionError) {
+                                    console.error(`❌ Failed to add GitHub project to session ${targetSessionId}:`, sessionError);
+                                    // Don't fail the entire upload - just log the error
+                                }
+                            }
+                            
                             res.json(result);
                             return;
                         } catch (error) {
@@ -1070,6 +1087,23 @@ export const api = onRequest(
 
                         try {
                             const result = await processZipFromStorage(zipPath, fileName, projectName);
+                            
+                            // If targetSessionId is provided, add the project to that session
+                            const targetSessionId = body.targetSessionId;
+                            if (targetSessionId && result.success) {
+                                try {
+                                    await addProjectToSession(targetSessionId, {
+                                        name: result.projectName,
+                                        files: result.files,
+                                        droppedSummary: result.droppedSummary
+                                    });
+                                    console.log(`✅ ZIP project added to session: ${targetSessionId}`);
+                                } catch (sessionError) {
+                                    console.error(`❌ Failed to add ZIP project to session ${targetSessionId}:`, sessionError);
+                                    // Don't fail the entire upload - just log the error
+                                }
+                            }
+                            
                             res.json(result);
                             return;
                         } catch (error) {
@@ -1097,9 +1131,26 @@ export const api = onRequest(
                 }
 
                 const clientFilterStats = fields.clientFilterStats;
+                const targetSessionId = fields.targetSessionId;
                 console.log(`File upload request: ${files.length} files for project "${projectName}"`);
 
                 const result = await processUploadedFiles(files, projectName, clientFilterStats);
+                
+                // If targetSessionId is provided, add the project to that session
+                if (targetSessionId && result.success) {
+                    try {
+                        await addProjectToSession(targetSessionId, {
+                            name: result.projectName,
+                            files: result.files,
+                            droppedSummary: result.droppedSummary
+                        });
+                        console.log(`✅ Project added to session: ${targetSessionId}`);
+                    } catch (sessionError) {
+                        console.error(`❌ Failed to add project to session ${targetSessionId}:`, sessionError);
+                        // Don't fail the entire upload - just log the error
+                    }
+                }
+                
                 res.json(result);
 
             } else if (path === '/claude' || path === '/api/claude') {
@@ -1210,6 +1261,47 @@ ${files.map((f: ProjectFile) => `- ${f.path} (${f.type}, ${f.size} bytes)`).join
             });
         }
     });
+
+// Helper function to add project to existing session
+async function addProjectToSession(sessionId: string, project: any): Promise<void> {
+    try {
+        console.log(`📡 Adding project "${project.name}" to session: ${sessionId}`);
+        
+        // Get the current session
+        const sessionRef = db.collection('sessions').doc(sessionId);
+        const sessionDoc = await sessionRef.get();
+        
+        if (!sessionDoc.exists) {
+            throw new Error(`Session ${sessionId} not found`);
+        }
+        
+        const sessionData = sessionDoc.data();
+        if (!sessionData) {
+            throw new Error(`Session ${sessionId} has no data`);
+        }
+        
+        // Check if session has expired
+        if (Date.now() > sessionData.expiresAt) {
+            throw new Error(`Session ${sessionId} has expired`);
+        }
+        
+        // Add the project to the session's projects array
+        const currentProjects = sessionData.projects || [];
+        currentProjects.push(project);
+        
+        // Update the session
+        await sessionRef.update({
+            projects: currentProjects,
+            updatedAt: Date.now()
+        });
+        
+        console.log(`✅ Successfully added project to session ${sessionId}. Total projects: ${currentProjects.length}`);
+        
+    } catch (error) {
+        console.error(`❌ Error adding project to session ${sessionId}:`, error);
+        throw error;
+    }
+}
 
 // Cleanup function to delete expired sessions
 export const cleanupExpiredSessions = onSchedule('every 24 hours', async (event) => {

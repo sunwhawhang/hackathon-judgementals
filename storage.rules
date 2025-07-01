@@ -13,6 +13,11 @@ service firebase.storage {
       allow read, write: if true;
     }
     
+    // Allow temporary uploads for processing (used by upload page)
+    match /temp-uploads/{tempFile} {
+      allow read, write: if true;
+    }
+    
     // Deny everything else by default
     match /{allPaths=**} {
       allow read, write: if false;
