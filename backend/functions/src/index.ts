@@ -1,4 +1,5 @@
 import { onRequest } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import { Anthropic } from '@anthropic-ai/sdk';
@@ -1209,3 +1210,50 @@ ${files.map((f: ProjectFile) => `- ${f.path} (${f.type}, ${f.size} bytes)`).join
             });
         }
     });
+
+// Cleanup function to delete expired sessions
+export const cleanupExpiredSessions = onSchedule('every 24 hours', async (event) => {
+    console.log('🧹 Starting cleanup of expired sessions...');
+    
+    try {
+        const now = Date.now();
+        const sessionsRef = db.collection('sessions');
+        
+        // Query for expired sessions
+        const expiredSessionsQuery = sessionsRef.where('expiresAt', '<', now);
+        const expiredSnapshot = await expiredSessionsQuery.get();
+        
+        if (expiredSnapshot.empty) {
+            console.log('✅ No expired sessions found');
+            return;
+        }
+        
+        console.log(`🗑️ Found ${expiredSnapshot.size} expired sessions to delete`);
+        
+        // Delete expired sessions in batches
+        const batch = db.batch();
+        let deleteCount = 0;
+        
+        expiredSnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+            deleteCount++;
+            
+            // Firestore batch limit is 500 operations
+            if (deleteCount >= 500) {
+                return;
+            }
+        });
+        
+        await batch.commit();
+        
+        console.log(`✅ Successfully deleted ${deleteCount} expired sessions`);
+        
+        // If there were more than 500, log that more cleanup is needed
+        if (expiredSnapshot.size > 500) {
+            console.log(`⚠️ ${expiredSnapshot.size - 500} more expired sessions remain (will be cleaned up in next run)`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error during session cleanup:', error);
+    }
+});

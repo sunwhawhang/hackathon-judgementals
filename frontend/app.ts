@@ -63,12 +63,29 @@ interface ClaudeAPIResponse {
     warning?: string;
 }
 
+interface SavedSession {
+    id: string;
+    name: string;
+    projects: Project[];
+    judges: Judge[];
+    evaluations: ProjectEvaluation[];
+    createdAt: number;
+    updatedAt: number;
+    expiresAt: number;
+}
+
 class HackathonJudge {
     private projects: Project[] = [];
     private judges: Judge[] = [];
     private evaluations: ProjectEvaluation[] = [];
     private readonly CLAUDE_API_SEED = 12345; // Fixed seed for consistency
     private readonly API_BASE_URL: string;
+    
+    // Session management
+    private currentSessionId: string | null = null;
+    private autoSaveEnabled = false;
+    private autoSaveInterval: number | null = null;
+    private sessionExpiryTime: number | null = null;
 
     constructor() {
         // Determine API base URL based on environment
@@ -78,6 +95,9 @@ class HackathonJudge {
         this.initializeDefaultJudges();
         this.renderJudges();
         this.initializeFileInputListeners();
+        
+        // Check for existing session after Firebase is initialized
+        this.waitForFirebaseAndLoadSession();
     }
 
     private getApiBaseUrl(): string {
@@ -476,7 +496,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
         const nameInput = document.getElementById('projectName') as HTMLInputElement;
         const folderInput = document.getElementById('folderUpload') as HTMLInputElement;
         const zipInput = document.getElementById('zipUpload') as HTMLInputElement;
-        const uploadSection = document.querySelector('.upload-section') as HTMLElement;
+        const uploadSection = document.getElementById('projectName')?.closest('.upload-section') as HTMLElement;
 
         if (!nameInput.value.trim()) {
             this.showError('Please enter a project name');
@@ -603,7 +623,7 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                     }, finalDelay);
 
                     // Show additional feedback for very large projects
-                    const uploadSection = document.querySelector('.upload-section') as HTMLElement;
+                    const uploadSection = document.getElementById('projectName')?.closest('.upload-section') as HTMLElement;
                     if (uploadSection && fileCount > 5000) {
                         const feedbackDiv = document.createElement('div');
                         feedbackDiv.style.cssText = `
@@ -1738,7 +1758,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         if (manualInput) manualInput.value = '';
     }
 
-    removeJudge(judgeId: string): void {
+    public removeJudge(judgeId: string): void {
         // Safety check: don't allow removing all judges
         if (this.judges.length <= 1) {
             this.showError('Cannot remove the last judge. You need at least one judge for the competition.');
@@ -1764,6 +1784,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         this.judges = this.judges.filter(judge => judge.id !== judgeId);
         this.showSuccess(`✅ Removed judge: ${judgeToRemove.name}`);
         this.renderJudges();
+        this.triggerAutoSave();
     }
 
     private async callClaudeAPI(prompt: string): Promise<string> {
@@ -1995,6 +2016,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
 
                     projectEvaluation.judgeResults = await Promise.all(judgePromises);
                     this.evaluations.push(projectEvaluation);
+                    this.triggerAutoSave(true); // Immediate save for evaluations
 
                 } catch (projectError) {
                     console.error(`❌ Error processing project ${project.name}:`, projectError);
@@ -2012,6 +2034,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                         }))
                     };
                     this.evaluations.push(fallbackEvaluation);
+                    this.triggerAutoSave(true); // Immediate save for evaluations
                 }
             }
 
@@ -2159,6 +2182,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 this.evaluations.forEach((evaluation, index) => {
                     evaluation.finalRank = index + 1;
                 });
+                this.triggerAutoSave(true); // Immediate save for final rankings
 
             } catch (fallbackError) {
                 console.error('❌ Even fallback ranking failed, using project order:', fallbackError);
@@ -2166,6 +2190,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 this.evaluations.forEach((evaluation, index) => {
                     evaluation.finalRank = index + 1;
                 });
+                this.triggerAutoSave(true); // Immediate save for final rankings
             }
         }
     }
@@ -2270,10 +2295,319 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
             }
         }
     }
+
+    // Session Management Methods
+    private async waitForFirebaseAndLoadSession(): Promise<void> {
+        // Wait for Firebase to be initialized
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds max wait
+        
+        while (attempts < maxAttempts) {
+            if ((window as any).firebaseFirestore && (window as any).firebaseGetDoc) {
+                console.log('🔥 Firebase initialized, checking for existing session...');
+                this.checkForExistingSession();
+                return;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+            attempts++;
+        }
+        
+        console.warn('⚠️ Firebase failed to initialize within 5 seconds, session loading skipped');
+    }
+
+    private checkForExistingSession(): void {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        
+        if (sessionId) {
+            console.log(`🔄 Loading existing session: ${sessionId}`);
+            this.loadSession(sessionId);
+        } else {
+            console.log('📝 No session ID found in URL, starting fresh session');
+        }
+    }
+
+    private async loadSession(sessionId: string): Promise<void> {
+        try {
+            console.log(`📡 Attempting to fetch session: ${sessionId}`);
+            const sessionDoc = await this.getFirestoreDoc('sessions', sessionId);
+            
+            if (sessionDoc) {
+                const sessionData = sessionDoc as SavedSession;
+                console.log(`📊 Session data retrieved:`, {
+                    name: sessionData.name,
+                    projectsCount: sessionData.projects?.length || 0,
+                    judgesCount: sessionData.judges?.length || 0,
+                    evaluationsCount: sessionData.evaluations?.length || 0,
+                    createdAt: new Date(sessionData.createdAt),
+                    expiresAt: new Date(sessionData.expiresAt)
+                });
+                
+                // Check if session has expired
+                if (Date.now() > sessionData.expiresAt) {
+                    console.warn('⏰ Session has expired');
+                    alert('This session has expired (7 days maximum). Please create a new project.');
+                    return;
+                }
+
+                // Load session data
+                this.currentSessionId = sessionId;
+                this.sessionExpiryTime = sessionData.expiresAt;
+                this.projects = sessionData.projects || [];
+                this.judges = sessionData.judges || [];
+                this.evaluations = sessionData.evaluations || [];
+                
+                console.log(`🔄 Restored state:`, {
+                    projects: this.projects.length,
+                    judges: this.judges.length,
+                    evaluations: this.evaluations.length
+                });
+                
+                // Update UI
+                console.log(`🎨 Rendering UI components...`);
+                this.renderProjects();
+                this.renderJudges();
+                this.renderResults();
+                
+                // Enable auto-save
+                this.enableAutoSave();
+                
+                // Show session info
+                this.showSessionInfo(sessionData.name);
+                
+                console.log('✅ Session loaded and UI updated successfully');
+            } else {
+                console.warn('❌ Session document not found in Firestore');
+                alert('Session not found. It may have expired or been deleted.');
+            }
+        } catch (error) {
+            console.error('❌ Error loading session:', error);
+            alert('Error loading session. Please try again.');
+        }
+    }
+
+    private async saveSession(): Promise<void> {
+        if (!this.currentSessionId) return;
+
+        try {
+            const sessionData: SavedSession = {
+                id: this.currentSessionId,
+                name: this.getSessionName(),
+                projects: this.projects,
+                judges: this.judges,
+                evaluations: this.evaluations,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days from now
+            };
+
+            await this.setFirestoreDoc('sessions', this.currentSessionId, sessionData);
+            console.log('💾 Session auto-saved');
+        } catch (error) {
+            console.error('❌ Error saving session:', error);
+        }
+    }
+
+    private generateSessionId(): string {
+        return Math.random().toString(36).substring(2, 15) + 
+               Math.random().toString(36).substring(2, 15);
+    }
+
+    private enableAutoSave(): void {
+        this.autoSaveEnabled = true;
+        
+        // Save every 30 seconds
+        if (this.autoSaveInterval) {
+            clearInterval(this.autoSaveInterval);
+        }
+        
+        this.autoSaveInterval = window.setInterval(() => {
+            this.saveSession();
+        }, 30000);
+    }
+
+    private triggerAutoSave(immediate: boolean = false): void {
+        if (this.autoSaveEnabled && this.currentSessionId) {
+            if (immediate) {
+                // Immediate save for critical operations
+                this.saveSession();
+            } else {
+                // Debounced auto-save for regular operations
+                clearTimeout((this as any).autoSaveTimeout);
+                (this as any).autoSaveTimeout = setTimeout(() => {
+                    this.saveSession();
+                }, 2000);
+            }
+        }
+    }
+
+    private getSessionName(): string {
+        const nameInput = document.getElementById('savedProjectName') as HTMLInputElement;
+        return nameInput?.value || 'Untitled Project';
+    }
+
+    private showSessionInfo(sessionName: string): void {
+        const nameInput = document.getElementById('savedProjectName') as HTMLInputElement;
+        const urlSection = document.getElementById('projectUrlSection');
+        const generatedUrl = document.getElementById('generatedUrl') as HTMLInputElement;
+        
+        if (nameInput) nameInput.value = sessionName;
+        if (urlSection) urlSection.style.display = 'block';
+        if (generatedUrl) generatedUrl.value = window.location.href;
+        
+        // Hide the input and button, show project name instead
+        this.hideProjectManagementInputs(sessionName);
+        
+        // Update expiry info for loaded sessions
+        this.updateExpiryInfoFromSession();
+    }
+
+    private hideProjectManagementInputs(sessionName: string): void {
+        // Hide the warning section
+        const warningSection = document.querySelector('.warning-box[style*="background: #2f1f19"]') as HTMLElement;
+        if (warningSection) {
+            warningSection.style.display = 'none';
+        }
+        
+        // Hide the input and button section
+        const inputSection = document.querySelector('#savedProjectName')?.parentElement as HTMLElement;
+        if (inputSection) {
+            inputSection.style.display = 'none';
+        }
+        
+        // Create or update project name display
+        let projectNameDisplay = document.getElementById('projectNameDisplay');
+        if (!projectNameDisplay) {
+            projectNameDisplay = document.createElement('div');
+            projectNameDisplay.id = 'projectNameDisplay';
+            projectNameDisplay.style.cssText = `
+                margin-bottom: 20px;
+                padding: 15px 20px;
+                background: #2a2a2a;
+                border: 1px solid #3d3d3d;
+                border-radius: 8px;
+                text-align: center;
+            `;
+            
+            // Insert before the project URL section
+            const urlSection = document.getElementById('projectUrlSection');
+            if (urlSection && urlSection.parentNode) {
+                urlSection.parentNode.insertBefore(projectNameDisplay, urlSection);
+            }
+        }
+        
+        projectNameDisplay.innerHTML = `
+            <div style="color: #cc8b5c; font-size: 18px; font-weight: 600; margin-bottom: 5px;">
+                📁 Project Name
+            </div>
+            <div style="color: #f5f5f5; font-size: 20px; font-weight: 500;">
+                ${sessionName}
+            </div>
+        `;
+    }
+
+    private updateExpiryInfo(): void {
+        const expiryInfoElement = document.getElementById('urlExpiryInfo');
+        if (expiryInfoElement) {
+            // Calculate expiry date (7 days from now)
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 7);
+            
+            // Format the date nicely
+            const options: Intl.DateTimeFormatOptions = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            
+            const formattedDate = expiryDate.toLocaleDateString('en-US', options);
+            expiryInfoElement.innerHTML = `This URL is valid for 7 days (expires ${formattedDate})`;
+        }
+    }
+
+    private updateExpiryInfoFromSession(): void {
+        const expiryInfoElement = document.getElementById('urlExpiryInfo');
+        if (expiryInfoElement && this.sessionExpiryTime) {
+            const expiryDate = new Date(this.sessionExpiryTime);
+            
+            // Format the date nicely
+            const options: Intl.DateTimeFormatOptions = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            
+            const formattedDate = expiryDate.toLocaleDateString('en-US', options);
+            expiryInfoElement.innerHTML = `This URL is valid for 7 days (expires ${formattedDate})`;
+        }
+    }
+
+    // Firestore helper methods
+    private async getFirestoreDoc(collection: string, docId: string): Promise<any> {
+        try {
+            console.log(`🔍 Fetching document: ${collection}/${docId}`);
+            const db = (window as any).firebaseFirestore;
+            const docRef = (window as any).firebaseDoc(db, collection, docId);
+            const docSnap = await (window as any).firebaseGetDoc(docRef);
+            
+            if (docSnap.exists()) {
+                console.log(`✅ Document found: ${collection}/${docId}`);
+                return docSnap.data();
+            } else {
+                console.log(`📭 Document not found: ${collection}/${docId}`);
+                return null;
+            }
+        } catch (error) {
+            console.error(`❌ Error getting document ${collection}/${docId}:`, error);
+            throw error;
+        }
+    }
+
+    private async setFirestoreDoc(collection: string, docId: string, data: any): Promise<void> {
+        try {
+            const db = (window as any).firebaseFirestore;
+            const docRef = (window as any).firebaseDoc(db, collection, docId);
+            await (window as any).firebaseSetDoc(docRef, data);
+        } catch (error) {
+            console.error('Error setting document:', error);
+            throw error;
+        }
+    }
+
+    // Override existing methods to trigger auto-save
+    public addProject(project: Project): void {
+        this.projects.push(project);
+        this.renderProjects();
+        this.triggerAutoSave();
+    }
+
+    public removeProject(index: number): void {
+        this.projects.splice(index, 1);
+        this.renderProjects();
+        this.triggerAutoSave();
+    }
+
+    public addJudge(judge: Judge): void {
+        this.judges.push(judge);
+        this.renderJudges();
+        this.triggerAutoSave();
+    }
+
+    private renderResults(): void {
+        this.displayResults();
+    }
+
 }
 
-// Global instance
-const hackathonJudge = new HackathonJudge();
+// Global instance (will be initialized on DOM ready)
+let hackathonJudge: HackathonJudge;
 
 // Global functions for HTML onclick handlers
 function uploadProject(): void {
@@ -2531,7 +2865,7 @@ function clearUpload(): void {
     toggleOtherUploadMethods(true);
 
     // Restore the original upload form if it was replaced
-    const uploadSection = document.querySelector('.upload-section') as HTMLElement;
+    const uploadSection = document.getElementById('projectName')?.closest('.upload-section') as HTMLElement;
     if (uploadSection) {
         // Check if the form was replaced with loading content
         if (!document.getElementById('projectName') || !document.getElementById('folderUpload')) {
@@ -2687,12 +3021,131 @@ function switchTab(projectName: string, tabIndex: number): void {
     }
 }
 
+// Global functions for project URL generation
+async function generateProjectUrl(): Promise<void> {
+    const nameInput = document.getElementById('savedProjectName') as HTMLInputElement;
+    const generateBtn = document.getElementById('generateUrlBtn') as HTMLButtonElement;
+    const urlSection = document.getElementById('projectUrlSection');
+    const generatedUrl = document.getElementById('generatedUrl') as HTMLInputElement;
+    
+    const projectName = nameInput?.value?.trim();
+    if (!projectName) {
+        alert('Please enter a project name first');
+        return;
+    }
+    
+    try {
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '⏳ Generating...';
+        
+        // Generate session ID and create URL
+        const sessionId = Math.random().toString(36).substring(2, 15) + 
+                         Math.random().toString(36).substring(2, 15);
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('session', sessionId);
+        
+        // Set up the session in the HackathonJudge instance
+        (hackathonJudge as any).currentSessionId = sessionId;
+        (hackathonJudge as any).sessionExpiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days from now
+        
+        // Show intermediate status
+        generateBtn.innerHTML = '💾 Saving data...';
+        
+        // Save initial session FIRST before showing URL
+        await (hackathonJudge as any).saveSession();
+        
+        // Verify the save worked by reading it back
+        generateBtn.innerHTML = '🔍 Verifying save...';
+        const verification = await (hackathonJudge as any).getFirestoreDoc('sessions', sessionId);
+        
+        if (!verification) {
+            throw new Error('Failed to verify session was saved properly');
+        }
+        
+        console.log('✅ Session saved and verified in Firestore');
+        
+        // Now enable auto-save for future changes
+        (hackathonJudge as any).enableAutoSave();
+        
+        // Update URL in browser
+        window.history.pushState({}, '', newUrl.toString());
+        
+        // Show success UI
+        if (urlSection) urlSection.style.display = 'block';
+        if (generatedUrl) generatedUrl.value = newUrl.toString();
+        
+        // Hide inputs and show project name
+        (hackathonJudge as any).hideProjectManagementInputs(projectName);
+        
+        // Update expiry info with actual date
+        (hackathonJudge as any).updateExpiryInfo();
+        
+        generateBtn.innerHTML = '✅ Generated & Saved!';
+        generateBtn.disabled = false;
+        
+        console.log('✅ Project URL generated and data saved successfully');
+        
+    } catch (error) {
+        console.error('❌ Error generating project URL:', error);
+        alert('Error generating project URL. Please try again.');
+        generateBtn.innerHTML = '🔗 Generate Project URL';
+        generateBtn.disabled = false;
+        
+        // Clear any partial session state
+        (hackathonJudge as any).currentSessionId = null;
+    }
+}
+
+function copyProjectUrl(): void {
+    const generatedUrl = document.getElementById('generatedUrl') as HTMLInputElement;
+    const copyBtn = document.getElementById('copyUrlBtn') as HTMLButtonElement;
+    
+    if (!generatedUrl?.value) {
+        alert('No URL to copy');
+        return;
+    }
+    
+    try {
+        navigator.clipboard.writeText(generatedUrl.value);
+        
+        // Visual feedback
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '✅ Copied!';
+        copyBtn.style.background = '#16a34a';
+        
+        setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+            copyBtn.style.background = '';
+        }, 2000);
+        
+        console.log('📋 Project URL copied to clipboard');
+        
+    } catch (error) {
+        console.error('❌ Error copying URL:', error);
+        
+        // Fallback: select the text
+        generatedUrl.select();
+        generatedUrl.setSelectionRange(0, 99999);
+        
+        try {
+            document.execCommand('copy');
+            copyBtn.innerHTML = '✅ Copied!';
+            setTimeout(() => {
+                copyBtn.innerHTML = '📋 Copy';
+            }, 2000);
+        } catch (fallbackError) {
+            alert('Please manually copy the URL from the text field');
+        }
+    }
+}
+
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Initializing HackathonJudge app...');
 
     // Initialize the app (this will also set up file input listeners)
-    (window as any).hackathonJudge = new HackathonJudge();
+    hackathonJudge = new HackathonJudge();
+    (window as any).hackathonJudge = hackathonJudge;
 });
 
 // Expose functions to global scope for HTML onclick handlers
@@ -2713,3 +3166,5 @@ document.addEventListener('DOMContentLoaded', () => {
 (window as any).resetUploadTabs = resetUploadTabs;
 (window as any).clearUpload = clearUpload;
 (window as any).showUploadStatus = showUploadStatus;
+(window as any).generateProjectUrl = generateProjectUrl;
+(window as any).copyProjectUrl = copyProjectUrl;

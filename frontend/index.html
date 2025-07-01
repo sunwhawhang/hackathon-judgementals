@@ -961,6 +961,48 @@
         </div>
 
         <div class="content">
+            <!-- Project Saving Section -->
+            <div class="section">
+                <h2>💾 Project Management</h2>
+                <div class="warning-box" style="background: #2f1f19; border-color: #5d3a2a;">
+                    <h4 style="color: #ff6b6b;">⚠️ Important: Save Your Session</h4>
+                    <ul style="color: #ff9999;">
+                        <li><strong>If you don't generate a project URL, your session won't be saved</strong></li>
+                        <li>You'll lose all your uploaded projects and judge configurations when you refresh</li>
+                        <li>Generate a unique project URL below to save your work automatically</li>
+                        <li>Your saved project will be <strong>valid for 7 days</strong></li>
+                    </ul>
+                </div>
+                
+                <div class="upload-section" style="background: #2a2a2a; border-color: #3d3d3d;">
+                    <div style="margin-bottom: 20px;">
+                        <input type="text" id="savedProjectName" class="upload-input" 
+                               placeholder="Enter a unique project name..." 
+                               style="width: 300px; margin-right: 12px;" />
+                        <button class="btn" onclick="generateProjectUrl()" id="generateUrlBtn">
+                            🔗 Generate Project URL
+                        </button>
+                    </div>
+                    
+                    <div id="projectUrlSection" style="display: none; margin-top: 20px; padding: 20px; background: #1f2f1f; border: 1px solid #3d5d3d; border-radius: 8px;">
+                        <h4 style="color: #4ade80; margin-bottom: 12px;">✅ Project URL Generated!</h4>
+                        <p style="color: #86efac; margin-bottom: 12px;">Your project is now being auto-saved. This URL is valid for 7 days:</p>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                            <input type="text" id="generatedUrl" readonly 
+                                   style="flex: 1; padding: 8px; background: #374151; border: 1px solid #4b5563; border-radius: 4px; color: #f3f4f6;" />
+                            <button class="btn" onclick="copyProjectUrl()" id="copyUrlBtn" style="padding: 8px 16px;">
+                                📋 Copy
+                            </button>
+                        </div>
+                        <div style="font-size: 14px; color: #86efac;">
+                            📌 Bookmark this URL to return to your project later.<br>
+                            🔄 All changes (uploads, judge configurations) are automatically saved.<br>
+                            ⏰ <span id="urlExpiryInfo">This URL is valid for 7 days</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Upload Section -->
             <div class="section">
                 <h2>📁 Upload Projects</h2>
@@ -1182,7 +1224,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
         import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-        import { getFirestore, collection, addDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getFirestore, collection, addDoc, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -1210,6 +1252,7 @@
         window.firebaseAddDoc = addDoc;
         window.firebaseDoc = doc;
         window.firebaseSetDoc = setDoc;
+        window.firebaseGetDoc = getDoc;
     </script>
     <script type="module" src="app.js"></script>
 

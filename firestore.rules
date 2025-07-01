@@ -13,6 +13,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
+    // Allow anyone to read and write to the sessions collection
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+    }
+    
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;
