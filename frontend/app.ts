@@ -2402,23 +2402,51 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         }
     }
 
-    private async saveSession(): Promise<void> {
+    private async saveSession(forceCreate: boolean = false): Promise<void> {
         if (!this.currentSessionId) return;
 
         // Only save if we have local changes to avoid overwriting external uploads
-        if (!this.hasLocalChanges) {
+        // Skip this check if forceCreate is true (for initial session creation)
+        if (!forceCreate && !this.hasLocalChanges) {
             console.log('🚫 Skipping auto-save - no local changes detected');
             return;
         }
 
         // Don't auto-save empty session data that could overwrite uploaded projects
-        if (!this.sessionDataLoaded && this.projects.length === 0 && this.judges.length === 0 && this.evaluations.length === 0) {
+        // Skip this check if forceCreate is true (for initial session creation)
+        if (!forceCreate && !this.sessionDataLoaded && this.projects.length === 0 && this.judges.length === 0 && this.evaluations.length === 0) {
             console.log('🚫 Skipping auto-save of empty session to prevent overwriting uploaded data');
             return;
         }
 
         try {
-            // Before saving, reload session to merge with any external changes (like uploads)
+            // For new session creation, skip the merge logic and create directly
+            if (forceCreate) {
+                console.log('💾 Creating new session document...');
+                
+                const sessionData: SavedSession = {
+                    id: this.currentSessionId,
+                    name: this.getSessionName(),
+                    projects: this.projects || [],
+                    judges: this.judges || [],
+                    evaluations: this.evaluations || [],
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                    expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days from now
+                    shareUploadUrlGenerated: false,
+                    shareUploadSectionExpanded: false
+                };
+
+                await this.setFirestoreDoc('sessions', this.currentSessionId, sessionData);
+                this.currentSessionData = sessionData;
+                this.lastSavedState = this.getCurrentStateHash();
+                this.hasLocalChanges = false;
+                
+                console.log('💾 New session created successfully');
+                return;
+            }
+
+            // For existing sessions, do the merge logic
             const currentSessionDoc = await this.getFirestoreDoc('sessions', this.currentSessionId);
             if (currentSessionDoc) {
                 const currentData = currentSessionDoc as SavedSession;
@@ -3192,12 +3220,26 @@ async function generateProjectUrl(): Promise<void> {
         (hackathonJudge as any).currentSessionId = sessionId;
         (hackathonJudge as any).sessionExpiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days from now
         (hackathonJudge as any).sessionDataLoaded = true; // Mark that we have valid session data
+        
+        // Initialize current session data for new session
+        (hackathonJudge as any).currentSessionData = {
+            id: sessionId,
+            name: projectName,
+            projects: (hackathonJudge as any).projects || [],
+            judges: (hackathonJudge as any).judges || [],
+            evaluations: (hackathonJudge as any).evaluations || [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000),
+            shareUploadUrlGenerated: false,
+            shareUploadSectionExpanded: false
+        };
 
         // Show intermediate status
         generateBtn.innerHTML = '💾 Saving data...';
 
-        // Save initial session FIRST before showing URL
-        await (hackathonJudge as any).saveSession();
+        // Save initial session FIRST before showing URL (force create to bypass guards)
+        await (hackathonJudge as any).saveSession(true);
 
         // Verify the save worked by reading it back
         generateBtn.innerHTML = '🔍 Verifying save...';
