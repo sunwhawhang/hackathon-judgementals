@@ -1549,6 +1549,10 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
             // Re-render the judges list
             this.renderJudges();
 
+            // Mark state as changed and trigger auto-save
+            this.markStateChanged();
+            this.triggerAutoSave();
+
         } catch (error) {
             this.hideJudgeCreationProgress();
             console.error('Error creating AI judge:', error);
@@ -2423,7 +2427,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
             // For new session creation, skip the merge logic and create directly
             if (forceCreate) {
                 console.log('💾 Creating new session document...');
-                
+
                 const sessionData: SavedSession = {
                     id: this.currentSessionId,
                     name: this.getSessionName(),
@@ -2441,7 +2445,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                 this.currentSessionData = sessionData;
                 this.lastSavedState = this.getCurrentStateHash();
                 this.hasLocalChanges = false;
-                
+
                 console.log('💾 New session created successfully');
                 return;
             }
@@ -3220,7 +3224,7 @@ async function generateProjectUrl(): Promise<void> {
         (hackathonJudge as any).currentSessionId = sessionId;
         (hackathonJudge as any).sessionExpiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days from now
         (hackathonJudge as any).sessionDataLoaded = true; // Mark that we have valid session data
-        
+
         // Initialize current session data for new session
         (hackathonJudge as any).currentSessionData = {
             id: sessionId,
