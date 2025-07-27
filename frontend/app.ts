@@ -1,81 +1,16 @@
 import { Judge, defaultJudges } from './defaultJudges.js';
-interface ProjectFile {
-    name: string;
-    content?: string;  // Optional for Firebase Storage
-    type: string;
-    size: number;
-    path: string;
-    storageUrl?: string;  // Firebase Storage URL
-    storagePath?: string; // Firebase Storage path
-}
+import {
+    ProjectFile,
+    Project,
+    JudgeResult,
+    ProjectEvaluation,
+    ClientFilterStats,
+    UploadResponse,
+    ClaudeAPIResponse,
+    SavedSession,
+    SessionChanges
+} from './types';
 
-interface Project {
-    name: string;
-    files: ProjectFile[];
-    droppedSummary?: string[];
-}
-
-interface JudgeResult {
-    judgeId: string;
-    judgeName: string;
-    summary: string;
-    score: number;
-    likes: string[];
-    dislikes: string[];
-}
-
-interface ProjectEvaluation {
-    projectName: string;
-    judgeResults: JudgeResult[];
-    finalRank?: number;
-}
-
-interface ClientFilterStats {
-    totalFiles: number;
-    filteredFiles: number;
-    filteredCount: number;
-    filterRatio: string;
-    droppedFolders: string[];
-    droppedFiles: string[];
-    filesByDirectory: Record<string, string[]>;
-    oversizedFiles: Array<{ name: string; size: number }>;
-}
-
-interface UploadResponse {
-    success: boolean;
-    projectName: string;
-    files: ProjectFile[];
-    skippedFiles?: number;
-    totalSize?: number;
-    warnings?: string[];
-    droppedSummary?: string[];
-    error?: string;
-}
-
-interface ClaudeAPIResponse {
-    success: boolean;
-    response: string;
-    usage?: {
-        input_tokens: number;
-        output_tokens: number;
-    };
-    error?: string;
-    warning?: string;
-}
-
-interface SavedSession {
-    id: string;
-    name: string;
-    projects: Project[];
-    judges: Judge[];
-    evaluations: ProjectEvaluation[];
-    createdAt: number;
-    updatedAt: number;
-    expiresAt: number;
-    // Share upload URL state
-    shareUploadUrlGenerated?: boolean;
-    shareUploadSectionExpanded?: boolean;
-}
 
 class HackathonJudge {
     private projects: Project[] = [];
@@ -93,6 +28,7 @@ class HackathonJudge {
     private lastSavedState: string | null = null; // Track last saved state to detect changes
     private hasLocalChanges = false; // Track if there are unsaved local changes
     private currentSessionData: SavedSession | null = null;
+    private sessionChanges: SessionChanges = {};
 
     constructor() {
         // Determine API base URL based on environment
@@ -762,12 +698,14 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
 
             // Add project to local list
             console.log('GitHub result droppedSummary:', result.droppedSummary);
-            this.projects.push({
+
+            const newProject: Project = {
                 name: result.projectName,
                 files: result.files,
                 droppedSummary: result.droppedSummary
-            });
-
+            }
+            this.addProject(newProject)
+            console.log('Project added:', newProject.name);
             this.showSuccess(`✅ GitHub repository cloned successfully! ${result.files.length} files processed`);
 
             // Show warnings if any (but let project list handle dropped summary)
@@ -777,10 +715,10 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 }, 1000);
             }
 
+            this.sessionChanges.projectsToAdd
             // Clear inputs
             nameInput.value = '';
             githubInput.value = '';
-            this.renderProjects();
 
         } catch (error) {
             console.error('❌ GitHub upload error:', error);
@@ -868,13 +806,13 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
                 throw new Error(result.error || 'ZIP upload failed');
             }
 
-            // Add project to local list
-            this.projects.push({
+            const newProject: Project = {
                 name: result.projectName,
                 files: result.files,
                 droppedSummary: result.droppedSummary
-            });
-
+            }
+            this.addProject(newProject)
+            console.log('Project added:', newProject.name);
             this.showSuccess(`✅ ZIP uploaded successfully! ${result.files.length} files processed`);
 
             // Show warnings if any (but let project list handle dropped summary)
@@ -887,7 +825,6 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
             // Clear inputs
             nameInput.value = '';
             zipInput.value = '';
-            this.renderProjects();
 
         } catch (error) {
             console.error('❌ ZIP upload error:', error);
@@ -1311,18 +1248,18 @@ ${project.files.map(f => `- ${f.path} (${f.type}, ${f.size} bytes)`).join('\n')}
             // Save project metadata to Firestore
             await this.saveProjectToFirestore(projectName, uploadedFiles);
 
-            // Add to local projects list with dropped summary
-            this.projects.push({
+            const newProject: Project = {
                 name: projectName,
                 files: uploadedFiles,
                 droppedSummary: droppedSummary.length > 0 ? droppedSummary : undefined
-            });
+            }
+            this.addProject(newProject)
+            console.log('Project added:', newProject.name);
 
             this.hideUploadProgress();
             this.showSuccess(`✅ Uploaded ${uploadedFiles.length} files to Firebase Storage!`);
             nameInput.value = '';
             fileInput.value = '';
-            this.renderProjects();
 
         } catch (error) {
             console.error('❌ Upload error details:', error);
@@ -1769,35 +1706,6 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         if (manualInput) manualInput.value = '';
     }
 
-    public removeJudge(judgeId: string): void {
-        // Safety check: don't allow removing all judges
-        if (this.judges.length <= 1) {
-            this.showError('Cannot remove the last judge. You need at least one judge for the competition.');
-            return;
-        }
-
-        // Find the judge to remove
-        const judgeToRemove = this.judges.find(judge => judge.id === judgeId);
-        if (!judgeToRemove) {
-            this.showError('Judge not found');
-            return;
-        }
-
-        // Confirm removal for default judges
-        const isDefaultJudge = ['technical', 'innovation', 'user-experience'].includes(judgeId);
-        if (isDefaultJudge) {
-            const confirmed = confirm(`Are you sure you want to remove the default "${judgeToRemove.name}" judge?`);
-            if (!confirmed) {
-                return;
-            }
-        }
-
-        this.judges = this.judges.filter(judge => judge.id !== judgeId);
-        this.showSuccess(`✅ Removed judge: ${judgeToRemove.name}`);
-        this.renderJudges();
-        this.triggerAutoSave();
-    }
-
     private async callClaudeAPI(prompt: string): Promise<string> {
         try {
             const response = await fetch(`${this.API_BASE_URL}/api/claude`, {
@@ -1968,13 +1876,15 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                     // Get evaluations from all judges in parallel
                     const judgePromises = this.judges.map(async (judge) => {
                         const basePrompt = `${judge.prompt}\n\nProject to evaluate:\n`;
-                        const endPrompt = `\n\nPlease provide your evaluation in the following JSON format:
-                {
-                    "summary": "Your detailed analysis and reasoning",
-                    "score": <number from 1-10>,
-                    "likes": ["positive aspect 1", "positive aspect 2", ...],
-                    "dislikes": ["negative aspect 1", "negative aspect 2", ...]
-                }`;
+                        const endPrompt = `\n\nIMPORTANT: Respond ONLY with valid JSON. Do not include any explanatory text before or after the JSON.
+
+Provide your evaluation in this exact JSON format:
+{
+    "summary": "Your detailed analysis and reasoning",
+    "score": <number from 1-10>,
+    "likes": ["positive aspect 1", "positive aspect 2", ...],
+    "dislikes": ["negative aspect 1", "negative aspect 2", ...]
+}`;
 
                         // Calculate available space for project data (8MB limit with safety margin)
                         const maxPromptSize = 7.5 * 1024 * 1024; // 7.5MB safety margin
@@ -1990,8 +1900,15 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                         const fullPrompt = basePrompt + truncatedProjectData + endPrompt;
 
                         try {
+                            console.log(`📝 Sending evaluation request to judge ${judge.name} for project ${project.name}`);
+                            // log full prompt for debugging
+                            console.log(`📜 Full prompt for judge ${judge.name}:\n${fullPrompt}`);
                             const response = await this.callClaudeAPI(fullPrompt);
+                            console.log(`✅ Received evaluation response from judge ${judge.name} for project ${project.name}: ${response}`);
                             const evaluation = JSON.parse(response);
+
+                            // print debug information
+                            console.log(`📝 Judge id ${judge.id}, ${judge.name} evaluation for project ${project.name}:`, evaluation);
 
                             // Validate evaluation structure and provide defaults
                             return {
@@ -2104,13 +2021,15 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
 
         const endPrompt = `
         
-        Please provide a final ranking in JSON format:
-        {
-            "rankings": [
-                {"projectName": "Project Name", "rank": 1, "reasoning": "Why this project ranked here"},
-                ...
-            ]
-        }`;
+        IMPORTANT: Respond ONLY with valid JSON. Do not include any explanatory text before or after the JSON.
+
+Provide a final ranking in this exact JSON format:
+{
+    "rankings": [
+        {"projectName": "Project Name", "rank": 1, "reasoning": "Why this project ranked here"},
+        ...
+    ]
+}`;
 
         const evaluationsText = this.evaluations.map(evaluation => `
         Project: ${evaluation.projectName}
@@ -2138,6 +2057,7 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
 
         try {
             const response = await this.callClaudeAPI(masterPrompt);
+            console.log(`✅ Received master evaluation response: ${response}`);
             const masterEvaluation = JSON.parse(response);
 
             // Validate master evaluation structure
@@ -2455,33 +2375,12 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
             if (currentSessionDoc) {
                 const currentData = currentSessionDoc as SavedSession;
 
-                // Merge external projects with our local projects (never delete, only add)
-                const externalProjects = currentData.projects || [];
-                const localProjects = this.projects || [];
-
-                // Create a map of project names for deduplication
-                const projectMap = new Map<string, any>();
-
-                // Add external projects first (these include uploads)
-                externalProjects.forEach(project => {
-                    projectMap.set(project.name, project);
-                });
-
-                // Add local projects (overwrite if same name, which means local edits)
-                localProjects.forEach(project => {
-                    projectMap.set(project.name, project);
-                });
-
-                // Convert back to array
-                const mergedProjects = Array.from(projectMap.values());
-
-                console.log(`💾 Merging session data - External: ${externalProjects.length}, Local: ${localProjects.length}, Merged: ${mergedProjects.length}`);
 
                 const sessionData: SavedSession = {
                     id: this.currentSessionId,
                     name: this.getSessionName(),
-                    projects: mergedProjects, // Use merged projects
-                    judges: this.judges, // Use local judges (user can only edit these locally)
+                    projects: this.projects, // Use merged projects
+                    judges: this.judges, // Use merged judges
                     evaluations: this.evaluations, // Use local evaluations (user can only edit these locally)
                     createdAt: currentData.createdAt || Date.now(),
                     updatedAt: Date.now(),
@@ -2491,12 +2390,12 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
                     shareUploadSectionExpanded: this.currentSessionData?.shareUploadSectionExpanded || false
                 };
 
-                await this.setFirestoreDoc('sessions', this.currentSessionId, sessionData);
+                await this.setFirestoreDoc('sessions', this.currentSessionId, sessionData, { merge: true });
 
                 // Update our local state with the merged data
-                this.projects = mergedProjects;
                 this.currentSessionData = sessionData; // Update the cached session data
                 this.renderProjects(); // Re-render to show any new uploaded projects
+                this.renderJudges(); // Re-render to show any new judges from other tabs
 
                 // Update the saved state hash
                 this.lastSavedState = this.getCurrentStateHash();
@@ -2743,35 +2642,155 @@ Conclude with a numerical score (1-10) based on your comprehensive expert evalua
         }
     }
 
-    private async setFirestoreDoc(collection: string, docId: string, data: any): Promise<void> {
+    private async setFirestoreDoc(collection: string, docId: string, data: any, options?: any): Promise<void> {
         try {
             const db = (window as any).firebaseFirestore;
             const docRef = (window as any).firebaseDoc(db, collection, docId);
-            await (window as any).firebaseSetDoc(docRef, data);
+            await (window as any).firebaseSetDoc(docRef, data, options);
         } catch (error) {
             console.error('Error setting document:', error);
             throw error;
         }
     }
 
+    // update the whole session by syncing any changes from firebase
+    public refreshSession(): void {
+        if (!this.currentSessionId) {
+            console.warn('❌ No current session ID to refresh');
+            return;
+        }
+
+        console.log(`🔄 Refreshing session data for ${this.currentSessionId}`);
+        this.getFirestoreDoc('sessions', this.currentSessionId)
+            .then(sessionData => {
+                if (sessionData) {
+                    // Update local state with fresh data
+                    this.projects = sessionData.projects;
+                    this.judges = sessionData.judges;
+                    this.evaluations = sessionData.evaluations;
+
+                    // Re-render UI components
+                    this.renderProjects();
+                    this.renderJudges();
+                    this.renderResults();
+
+                    // Update expiry info
+                    this.updateExpiryInfoFromSession();
+
+                    console.log('✅ Session refreshed successfully');
+                } else {
+                    console.warn('⚠️ Session data not found during refresh');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error refreshing session:', error);
+            });
+    }
+
     // Override existing methods to trigger auto-save
     public addProject(project: Project): void {
         this.projects.push(project);
-        this.markStateChanged();
+        if (this.currentSessionId) {
+            const updates = {
+                projects: this.projects,
+                updatedAt: Date.now()
+            };
+            this.setFirestoreDoc('sessions', this.currentSessionId, updates, { merge: true })
+                .then(() => {
+                    console.log(`✅ Project added successfully`);
+                })
+                .catch(error => {
+                    console.error(`❌ Error adding project:`, error);
+                });
+        }
+        // this.markStateChanged();
         this.renderProjects();
         this.triggerAutoSave();
     }
 
     public removeProject(index: number): void {
+        if (this.currentSessionId) {
+            const updates = {
+                projects: (window as any).firebaseArrayRemove(this.projects[index]),
+                updatedAt: Date.now()
+            }
+            this.setFirestoreDoc('sessions', this.currentSessionId, updates, { merge: true })
+                .then(() => {
+                    console.log(`✅ Project removed successfully`);
+                })
+                .catch(error => {
+                    console.error(`❌ Error removing project:`, error);
+                    this.showError(`❌ Error removing project: ${error.message}. Please try again.`);
+                    return;
+                });
+        }
         this.projects.splice(index, 1);
-        this.markStateChanged();
+        // this.markStateChanged();
         this.renderProjects();
         this.triggerAutoSave();
     }
 
     public addJudge(judge: Judge): void {
         this.judges.push(judge);
-        this.markStateChanged();
+        if (this.currentSessionId) {
+            const updates = {
+                judges: this.judges,
+                updatedAt: Date.now()
+            };
+            this.setFirestoreDoc('sessions', this.currentSessionId, updates, { merge: true })
+                .then(() => {
+                    console.log(`✅ Judge added successfully`);
+                })
+                .catch(error => {
+                    console.error(`❌ Error adding judge:`, error);
+                });
+        }
+        // this.markStateChanged();
+        this.renderJudges();
+        this.triggerAutoSave();
+    }
+
+    public removeJudge(judgeId: string): void {
+        // Safety check: don't allow removing all judges
+        if (this.judges.length <= 1) {
+            this.showError('Cannot remove the last judge. You need at least one judge for the competition.');
+            return;
+        }
+
+        // Find the judge to remove
+        const judgeToRemove = this.judges.find(judge => judge.id === judgeId);
+        if (!judgeToRemove) {
+            this.showError('Judge not found');
+            return;
+        }
+
+        // Confirm removal for default judges
+        const isDefaultJudge = ['technical', 'innovation', 'user-experience'].includes(judgeId);
+        if (isDefaultJudge) {
+            const confirmed = confirm(`Are you sure you want to remove the default "${judgeToRemove.name}" judge?`);
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        if (this.currentSessionId) {
+            // Remove from Firestore if in a session
+            const updates = {
+                judges: (window as any).firebaseArrayRemove(judgeToRemove),
+                updatedAt: Date.now()
+            }
+            this.setFirestoreDoc('sessions', this.currentSessionId, updates, { merge: true })
+                .then(() => {
+                    console.log(`Judge ${judgeToRemove.name} removed from session ${this.currentSessionId}`);
+                })
+                .catch(error => {
+                    console.error('Error removing judge from session:', error);
+                    this.showError(`Failed to remove judge from session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    return;
+                });
+        }
+        this.judges = this.judges.filter(judge => judge.id !== judgeId);
+        this.showSuccess(`✅ Removed judge: ${judgeToRemove.name}`);
         this.renderJudges();
         this.triggerAutoSave();
     }

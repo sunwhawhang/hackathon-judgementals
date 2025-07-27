@@ -170,18 +170,10 @@ class UploadManager {
         const uploadSection = document.getElementById('uploadSection');
         const successMessage = document.getElementById('successMessage');
         const errorMessage = document.getElementById('errorMessage');
-        const backToMainLink = document.getElementById('backToMainLink') as HTMLAnchorElement;
 
         if (uploadSection) uploadSection.style.display = 'none';
         if (errorMessage) errorMessage.style.display = 'none';
         if (successMessage) successMessage.style.display = 'block';
-
-        // Set the back link to include the session ID
-        if (backToMainLink && this.targetSessionId) {
-            const mainUrl = new URL(window.location.origin);
-            mainUrl.searchParams.set('session', this.targetSessionId);
-            backToMainLink.href = mainUrl.toString();
-        }
     }
 
     private initializeFileInputListeners(): void {

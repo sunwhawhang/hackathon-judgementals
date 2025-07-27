@@ -4,8 +4,8 @@
   "main": "index.js",
   "scripts": {
     "build": "npm run build:typescript && npm run build:frontend",
-    "build:typescript": "tsc frontend/app.ts --outDir frontend/dist --target ES2020 --module ES2020 --moduleResolution node && tsc frontend/upload.ts --outDir frontend/dist --target ES2020 --module ES2020 --moduleResolution node",
-    "build:frontend": "mkdir -p frontend/dist && cp frontend/index.html frontend/dist/ && cp frontend/upload.html frontend/dist/ && cp -r frontend/fonts frontend/dist/ && cp frontend/*.png frontend/dist/ && tsc frontend/app.ts --outDir frontend/dist --target ES2020 --module ES2020 --moduleResolution node && tsc frontend/upload.ts --outDir frontend/dist --target ES2020 --module ES2020 --moduleResolution node",
+    "build:typescript": "tsc frontend/types.ts frontend/app.ts frontend/upload.ts --outDir frontend/dist --target ES2020 --module ES2020 --moduleResolution node",
+    "build:frontend": "mkdir -p frontend/dist && cp frontend/index.html frontend/dist/ && cp frontend/upload.html frontend/dist/ && cp -r frontend/fonts frontend/dist/ && cp frontend/*.png frontend/dist/ && tsc frontend/types.ts frontend/app.ts frontend/upload.ts --outDir frontend/dist --target ES2020 --module ES2020 --moduleResolution node",
     "dev": "tsc --watch",
     "start": "npm run build && node server.js",
     "serve": "npm run build && node server.js",
